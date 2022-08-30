@@ -272,7 +272,8 @@ class SimStudent():
     return np.array(reward, dtype=np.float32), done
 
   def reset(self):
-    self.true_masteries =  ast.literal_eval(open('/mnt/c/Users/dohuu/Desktop/kyons_AI/Deep-Reinforcement-Learning-in-Large-Discrete-Action-Spaces/fix_masteries.txt', 'r').read())
+    # self.true_masteries =  ast.literal_eval(open('/mnt/c/Users/dohuu/Desktop/kyons_AI/Deep-Reinforcement-Learning-in-Large-Discrete-Action-Spaces/fix_masteries.txt', 'r').read())
+    self.true_masteries = np.random.randint(2, size=20)
     self.history = []
     return self._get_obs(self.true_masteries)
 

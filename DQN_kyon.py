@@ -161,5 +161,5 @@ def infer():
             new_observation, reward, done, info = env.step(action)
         observation = new_observation
 if __name__ == '__main__':
-    # main()
-    infer()
+    main()
+    # infer()
