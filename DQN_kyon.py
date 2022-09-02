@@ -3,8 +3,9 @@ import gym
 import tensorflow as tf
 import numpy as np
 from tensorflow import keras
+import gc
 
-
+import keras.backend as K
 from collections import deque
 import time
 import random
@@ -23,7 +24,7 @@ tf.random.set_seed(RANDOM_SEED)
 env = SimStudent()
 
 # An episode a full game
-train_episodes = 1000
+train_episodes = 500
 test_episodes = 100
 
 def agent(state_shape, action_shape):
@@ -58,6 +59,8 @@ def train(env, replay_memory, model, target_model, done):
     current_qs_list = model.predict(current_states)
     new_current_states = np.array([transition[3] for transition in mini_batch])
     future_qs_list = target_model.predict(new_current_states)
+    K.clear_session()
+
 
     X = []
     Y = []
@@ -88,7 +91,7 @@ def main():
     target_model = agent((20,), 20)
     target_model.set_weights(model.get_weights())
 
-    replay_memory = deque(maxlen=50_000)
+    replay_memory = deque(maxlen=1_500)
 
     target_update_counter = 0
 
@@ -116,6 +119,7 @@ def main():
                 encoded = observation
                 encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
                 predicted = model.predict(encoded_reshaped).flatten()
+                K.clear_session()
                 action = np.argmax(predicted)
             new_observation, reward, done, info = env.step(action)
             replay_memory.append([observation, action, reward, new_observation, done])
@@ -126,7 +130,9 @@ def main():
 
             observation = new_observation
             total_training_rewards += reward
-
+    
+            # K.clear_session()
+            gc.collect()
             if done:
                 print('Total training rewards: {} after n steps = {} with final reward = {}'.format(total_training_rewards, episode, reward))
                 total_training_rewards += 1
@@ -142,11 +148,12 @@ def main():
             model.save("kyon_model")
 
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
+        
     # env.close()
 
 def infer():
 
-    model = keras.models.load_model('kyon_model')
+    model = keras.models.load_model('/mnt/d/src/RL/DQN/kyon_model')
 
     observation = env.reset()
     observation = env.reset()
@@ -161,5 +168,5 @@ def infer():
             new_observation, reward, done, info = env.step(action)
         observation = new_observation
 if __name__ == '__main__':
-    main()
-    # infer()
+    # main()
+    infer()
