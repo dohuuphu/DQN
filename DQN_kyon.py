@@ -7,7 +7,7 @@ import gc
 
 import keras.backend as K
 from collections import deque
-import time
+import datetime
 import random
 from env_kyon import SimStudent
 
@@ -40,12 +40,13 @@ def agent(state_shape, action_shape):
     model.add(keras.layers.Dense(12, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init))
     model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+
     return model
 
 def get_qs(model, state, step):
     return model.predict(state.reshape([1, state.shape[0]]))[0]
 
-def train(env, replay_memory, model, target_model, done):
+def train(env, replay_memory, model, target_model, done, tensorboard_callback):
     learning_rate = 0.7 # Learning rate
     discount_factor = 0.618
 
@@ -75,7 +76,7 @@ def train(env, replay_memory, model, target_model, done):
 
         X.append(observation)
         Y.append(current_qs)
-    model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
+    model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1, callbacks=[tensorboard_callback])
 
     
 def main():
@@ -90,6 +91,12 @@ def main():
     # Target Model (updated every 100 steps)
     target_model = agent((20,), 20)
     target_model.set_weights(model.get_weights())
+
+    # Init logger
+    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/log'
+    train_log_dir =  "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/reward'
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     replay_memory = deque(maxlen=1_500)
 
@@ -134,7 +141,7 @@ def main():
 
             # 3. Update the Main Network using the Bellman Equation
             if steps_to_update_target_model % 4 == 0 or done:
-                train(env, replay_memory, model, target_model, done)
+                train(env, replay_memory, model, target_model, done, tensorboard_callback)
 
             observation = new_observation
             total_training_rewards += reward
@@ -143,7 +150,10 @@ def main():
             gc.collect()
             if done:
                 print('Total training rewards: {} after n steps = {} with final reward = {}'.format(total_training_rewards, episode, reward))
-                total_training_rewards += 1
+                with train_summary_writer.as_default():
+                    tf.summary.scalar('reward', total_training_rewards, step=episode)
+            
+                total_training_rewards = 0
 
                 if steps_to_update_target_model >= 100:
                     print('Copying main network weights to the target network weights')
@@ -176,5 +186,5 @@ def infer():
             new_observation, reward, done, info = env.step(action)
         observation = new_observation
 if __name__ == '__main__':
-    # main()
-    infer()
+    main()
+    # infer()
