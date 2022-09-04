@@ -75,7 +75,7 @@ def train(env, replay_memory, model, target_model, done):
 
         X.append(observation)
         Y.append(current_qs)
-    model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True)
+    model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
 
     
 def main():
@@ -105,6 +105,7 @@ def main():
         total_training_rewards = 0
         observation = env.reset()
         done = False
+        old_action = ''
         while not done:
             steps_to_update_target_model += 1
 
@@ -121,6 +122,13 @@ def main():
                 predicted = model.predict(encoded_reshaped).flatten()
                 K.clear_session()
                 action = np.argmax(predicted)
+
+                # random action
+                if old_action == action:
+                    if random.randint(0,1):
+                        action = random.randint(0, len(observation) - 1)
+                            
+                old_action = action
             new_observation, reward, done, info = env.step(action)
             replay_memory.append([observation, action, reward, new_observation, done])
 

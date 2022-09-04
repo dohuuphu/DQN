@@ -201,7 +201,7 @@ class SimStudent():
     # reward -= len(self.history)
 
     if not 0.0 in self.true_masteries:
-      reward += 100.0
+      # reward += 100.0
       done = True
 
     return self._get_obs(self.true_masteries), reward, done, {}
