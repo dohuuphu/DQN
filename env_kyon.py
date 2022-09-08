@@ -11,7 +11,7 @@ import random
 import numpy as np
 
 import numpy as np
-import torch
+# import torch
 
 # def log_INFO(message):
 #   # print(message)
@@ -20,8 +20,8 @@ import torch
 class SimStudent():
       # An observation of the environment is a list of skill mastery, each value [0,1] represents the student's learning progress of a skill
   def __init__(self, intelligence = 50, luck=50, level = "10"):
-    self.observation_space = [0, 1, 20] # min max shape
-    self.action_space = Box(0.,20.,(1,))
+    self.observation_space = [0, 1, 80] # min max shape
+    self.action_space = Box(0.,80.,(1,))
     self.v_min = -100.0
     self.v_max = 0.
 
@@ -273,13 +273,13 @@ class SimStudent():
 
   def reset(self):
     # self.true_masteries =  ast.literal_eval(open('/mnt/c/Users/dohuu/Desktop/kyons_AI/Deep-Reinforcement-Learning-in-Large-Discrete-Action-Spaces/fix_masteries.txt', 'r').read())
-    self.true_masteries = np.random.randint(2, size=20)
+    self.true_masteries = np.random.randint(2, size=100)
     self.history = []
     return self._get_obs(self.true_masteries)
 
   def _get_obs(self, masteries):
     np_value = np.array([i*1.0 for i in masteries], np.float32)
-    tensor_value = torch.FloatTensor(np_value)
+    # tensor_value = torch.FloatTensor(np_value)
     return np_value #.reshape(len(masteries),1)
 
   def preview(self):

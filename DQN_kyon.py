@@ -1,5 +1,5 @@
 from tkinter import W
-import gym
+# import gym
 import tensorflow as tf
 import numpy as np
 from tensorflow import keras
@@ -24,7 +24,7 @@ tf.random.set_seed(RANDOM_SEED)
 env = SimStudent()
 
 # An episode a full game
-train_episodes = 500
+train_episodes = 15000
 test_episodes = 100
 
 def agent(state_shape, action_shape):
@@ -46,7 +46,7 @@ def agent(state_shape, action_shape):
 def get_qs(model, state, step):
     return model.predict(state.reshape([1, state.shape[0]]))[0]
 
-def train(env, replay_memory, model, target_model, done, tensorboard_callback):
+def train(env, replay_memory, model, target_model, done, train_summary_writer, episode):
     learning_rate = 0.7 # Learning rate
     discount_factor = 0.618
 
@@ -57,9 +57,9 @@ def train(env, replay_memory, model, target_model, done, tensorboard_callback):
     batch_size = 64 * 2
     mini_batch = random.sample(replay_memory, batch_size)
     current_states = np.array([transition[0] for transition in mini_batch])
-    current_qs_list = model.predict(current_states)
+    current_qs_list = model.predict(current_states,verbose = 0)
     new_current_states = np.array([transition[3] for transition in mini_batch])
-    future_qs_list = target_model.predict(new_current_states)
+    future_qs_list = target_model.predict(new_current_states,verbose = 0)
     K.clear_session()
 
 
@@ -76,7 +76,12 @@ def train(env, replay_memory, model, target_model, done, tensorboard_callback):
 
         X.append(observation)
         Y.append(current_qs)
-    model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1, callbacks=[tensorboard_callback])
+        
+    his = model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
+    # print(list(his.history.values())[0])
+    with train_summary_writer.as_default():
+        tf.summary.scalar('loss', his.history['loss'][0], step=episode)
+        tf.summary.scalar('acc', his.history['accuracy'][0], step=episode)
 
     
 def main():
@@ -85,18 +90,20 @@ def main():
     min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
     decay = 0.01
 
+    lesson_length = 100
+
     # 1. Initialize the Target and Main models
     # Main Model (updated every 4 steps)
-    model = agent((20,), 20)
+    model = agent((lesson_length,), lesson_length)
     # Target Model (updated every 100 steps)
-    target_model = agent((20,), 20)
+    target_model = agent((lesson_length,), lesson_length)
     target_model.set_weights(model.get_weights())
 
     # Init logger
     log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/log'
     train_log_dir =  "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/reward'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0)
 
     replay_memory = deque(maxlen=1_500)
 
@@ -126,7 +133,7 @@ def main():
                 # model dims are (batch, env.observation_space.n)
                 encoded = observation
                 encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-                predicted = model.predict(encoded_reshaped).flatten()
+                predicted = model.predict(encoded_reshaped,verbose = 0).flatten()
                 K.clear_session()
                 action = np.argmax(predicted)
 
@@ -141,7 +148,7 @@ def main():
 
             # 3. Update the Main Network using the Bellman Equation
             if steps_to_update_target_model % 4 == 0 or done:
-                train(env, replay_memory, model, target_model, done, tensorboard_callback)
+                train(env, replay_memory, model, target_model, done, train_summary_writer, episode)
 
             observation = new_observation
             total_training_rewards += reward
@@ -163,7 +170,7 @@ def main():
         
         if episode %100 == 0:
             print("save model =======")
-            model.save("kyon_model")
+            model.save("kyon_model_v100")
 
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         
@@ -171,7 +178,7 @@ def main():
 
 def infer():
 
-    model = keras.models.load_model('/mnt/d/src/RL/DQN/kyon_model')
+    model = keras.models.load_model('kyon_model')
 
     observation = env.reset()
     observation = env.reset()
