@@ -181,16 +181,20 @@ class SimStudent():
     self.history = []
     self.history_topic = []
 
-  def step(self, action):   
+  def step(self, action, zero_list:list):   
     reward = 0
+    reward_scale = 5
     done = False
     # action = self.align_action(action) if random_value else int(action)
     action = round(float(action))
     self.history.append(action)
     if self.true_masteries[action] == 1.0:
-      reward -= 1.0
+      # reward -= reward_scale*2
+      reward-=1
     else:
-      reward += 1.0
+      # pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
+      pos_zero =1
+      reward += pos_zero
     
     self.true_masteries[action] = 1.0
 
@@ -198,7 +202,7 @@ class SimStudent():
     #   if self.true_masteries[i] == 0.0:
     #     reward -= 1
 
-    # reward -= len(self.history)
+    reward -= len(self.history)*0.05
 
     if not 0.0 in self.true_masteries:
       # reward += 100.0
@@ -273,9 +277,12 @@ class SimStudent():
 
   def reset(self):
     # self.true_masteries =  ast.literal_eval(open('/mnt/c/Users/dohuu/Desktop/kyons_AI/Deep-Reinforcement-Learning-in-Large-Discrete-Action-Spaces/fix_masteries.txt', 'r').read())
-    self.true_masteries = np.random.randint(2, size=100)
+    self.true_masteries = np.random.randint(2, size=50)
     self.history = []
-    return self._get_obs(self.true_masteries)
+
+    # Get zero index
+    zero_list = [i for i in range(len(self.true_masteries)) if self.true_masteries[i] == 0.0]
+    return self._get_obs(self.true_masteries), zero_list
 
   def _get_obs(self, masteries):
     np_value = np.array([i*1.0 for i in masteries], np.float32)

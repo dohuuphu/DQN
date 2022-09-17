@@ -1,6 +1,5 @@
-from tkinter import W
-# import gym
 import tensorflow as tf
+# tf.compat.v1.disable_eager_execution()
 import numpy as np
 from tensorflow import keras
 import gc
@@ -10,6 +9,9 @@ from collections import deque
 import datetime
 import random
 from env_kyon import SimStudent
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"   
 
 RANDOM_SEED = 5
 tf.random.set_seed(RANDOM_SEED)
@@ -24,7 +26,7 @@ tf.random.set_seed(RANDOM_SEED)
 env = SimStudent()
 
 # An episode a full game
-train_episodes = 15000
+train_episodes = 10000
 test_episodes = 100
 
 def agent(state_shape, action_shape):
@@ -36,8 +38,8 @@ def agent(state_shape, action_shape):
     learning_rate = 0.001
     init = tf.keras.initializers.HeUniform()
     model = keras.Sequential()
-    model.add(keras.layers.Dense(24, input_shape=state_shape, activation='relu', kernel_initializer=init))
-    model.add(keras.layers.Dense(12, activation='relu', kernel_initializer=init))
+    model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
+    model.add(keras.layers.Dense(256, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init))
     model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
 
@@ -89,19 +91,23 @@ def main():
     max_epsilon = 1 # You can't explore more than 100% of the time
     min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
     decay = 0.01
-
-    lesson_length = 100
+    retrain = False
+    lesson_length = 50
+    model_name =f'kyon_model_v50_length'
 
     # 1. Initialize the Target and Main models
     # Main Model (updated every 4 steps)
-    model = agent((lesson_length,), lesson_length)
+    if not retrain:
+        model = agent((lesson_length,), lesson_length)
+    else:
+        model = keras.models.load_model('kyon_model_v100')
     # Target Model (updated every 100 steps)
     target_model = agent((lesson_length,), lesson_length)
     target_model.set_weights(model.get_weights())
 
     # Init logger
     log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/log'
-    train_log_dir =  "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/reward'
+    train_log_dir =  "logs/fit/" + model_name + '/reward'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0)
 
@@ -117,7 +123,7 @@ def main():
 
     for episode in range(train_episodes):
         total_training_rewards = 0
-        observation = env.reset()
+        observation, zero_list = env.reset()
         done = False
         old_action = ''
         while not done:
@@ -143,7 +149,7 @@ def main():
                         action = random.randint(0, len(observation) - 1)
                             
                 old_action = action
-            new_observation, reward, done, info = env.step(action)
+            new_observation, reward, done, info = env.step(action, zero_list)
             replay_memory.append([observation, action, reward, new_observation, done])
 
             # 3. Update the Main Network using the Bellman Equation
@@ -170,7 +176,7 @@ def main():
         
         if episode %100 == 0:
             print("save model =======")
-            model.save("kyon_model_v100")
+            model.save(model_name)
 
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         
@@ -178,20 +184,29 @@ def main():
 
 def infer():
 
-    model = keras.models.load_model('kyon_model')
+    model = keras.models.load_model('kyon_model_v30_length')
 
-    observation = env.reset()
-    observation = env.reset()
+    observation, zero_list = env.reset()
+    total_zero = (observation == 0.0).sum()
+    pos_zero = np.where(observation==0.0)
+
+    pred_actions = []
+    print(observation)
     while 0.0 in observation:
         encoded = observation
         encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
         predicted = model.predict(encoded_reshaped).flatten()
         action = np.argmax(predicted)
-        new_observation, reward, done, info = env.step(action)
+        pred_actions.append(action)
+        new_observation, reward, done, info = env.step(action, zero_list)
         while np.array_equal(observation, new_observation):
             action = random.randint(0, 19)
-            new_observation, reward, done, info = env.step(action)
+            new_observation, reward, done, info = env.step(action, zero_list)
         observation = new_observation
+
+    miss_pos = np.setdiff1d(pos_zero, pred_actions)
+    wrong_pred = np.setdiff1d(pred_actions, pos_zero)
+    print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_pos = {miss_pos}\nwrong_pred = {wrong_pred}')        
 if __name__ == '__main__':
     main()
     # infer()
