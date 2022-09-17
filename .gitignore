@@ -90,3 +90,5 @@ Session.vim
 
 .vscode/
 kyon_model*/
+weight/
+logs/

@@ -1,5 +1,5 @@
 import tensorflow as tf
-# tf.compat.v1.disable_eager_execution()
+
 import numpy as np
 from tensorflow import keras
 import gc
@@ -9,7 +9,7 @@ from collections import deque
 import datetime
 import random
 from env_kyon import SimStudent
-
+from variables import *
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"   
 
@@ -26,7 +26,6 @@ tf.random.set_seed(RANDOM_SEED)
 env = SimStudent()
 
 # An episode a full game
-train_episodes = 10000
 test_episodes = 100
 
 def agent(state_shape, action_shape):
@@ -91,25 +90,21 @@ def main():
     max_epsilon = 1 # You can't explore more than 100% of the time
     min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
     decay = 0.01
-    retrain = False
-    lesson_length = 50
-    model_name =f'kyon_model_v50_length'
+    
 
     # 1. Initialize the Target and Main models
     # Main Model (updated every 4 steps)
-    if not retrain:
-        model = agent((lesson_length,), lesson_length)
+    if not RETRAIN:
+        model = agent((STATE_ACTION_SPACE,), STATE_ACTION_SPACE)
     else:
-        model = keras.models.load_model('kyon_model_v100')
+        model = keras.models.load_model(f'weight/{MODEL_RETRAIN}')
     # Target Model (updated every 100 steps)
-    target_model = agent((lesson_length,), lesson_length)
+    target_model = agent((STATE_ACTION_SPACE,), STATE_ACTION_SPACE)
     target_model.set_weights(model.get_weights())
 
     # Init logger
-    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/log'
-    train_log_dir =  "logs/fit/" + model_name + '/reward'
+    train_log_dir =  "logs/" + MODEL_SAVE + '/reward'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0)
 
     replay_memory = deque(maxlen=1_500)
 
@@ -176,7 +171,7 @@ def main():
         
         if episode %100 == 0:
             print("save model =======")
-            model.save(model_name)
+            model.save(f'weight/{MODEL_SAVE}')
 
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         
@@ -184,7 +179,7 @@ def main():
 
 def infer():
 
-    model = keras.models.load_model('kyon_model_v30_length')
+    model = keras.models.load_model(f'weight/{MODEL_INFERENCE}')
 
     observation, zero_list = env.reset()
     total_zero = (observation == 0.0).sum()

@@ -13,6 +13,7 @@ import numpy as np
 import numpy as np
 # import torch
 
+from variables import *
 # def log_INFO(message):
 #   # print(message)
 #   logger.info(message)
@@ -188,13 +189,13 @@ class SimStudent():
     # action = self.align_action(action) if random_value else int(action)
     action = round(float(action))
     self.history.append(action)
+    
     if self.true_masteries[action] == 1.0:
       # reward -= reward_scale*2
       reward-=1
     else:
-      # pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
-      pos_zero =1
-      reward += pos_zero
+      pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
+      reward += 1 if not RELATION else pos_zero
     
     self.true_masteries[action] = 1.0
 
@@ -202,7 +203,7 @@ class SimStudent():
     #   if self.true_masteries[i] == 0.0:
     #     reward -= 1
 
-    reward -= len(self.history)*0.05
+    reward -= len(self.history)*0.05 if REWARD_LENGTH else 0
 
     if not 0.0 in self.true_masteries:
       # reward += 100.0
@@ -277,7 +278,7 @@ class SimStudent():
 
   def reset(self):
     # self.true_masteries =  ast.literal_eval(open('/mnt/c/Users/dohuu/Desktop/kyons_AI/Deep-Reinforcement-Learning-in-Large-Discrete-Action-Spaces/fix_masteries.txt', 'r').read())
-    self.true_masteries = np.random.randint(2, size=50)
+    self.true_masteries = np.random.randint(2, size=STATE_ACTION_SPACE)
     self.history = []
 
     # Get zero index
