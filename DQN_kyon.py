@@ -118,11 +118,16 @@ def main():
 
     for episode in range(train_episodes):
         total_training_rewards = 0
+        step_per_episode = 0
         observation, zero_list = env.reset()
+        
+        total_zero = (observation == 0.0).sum()
+
         done = False
         old_action = ''
         while not done:
             steps_to_update_target_model += 1
+            step_per_episode += 1
 
             random_number = np.random.rand()
             # 2. Explore using the Epsilon Greedy Exploration Strategy
@@ -160,7 +165,8 @@ def main():
                 print('Total training rewards: {} after n steps = {} with final reward = {}'.format(total_training_rewards, episode, reward))
                 with train_summary_writer.as_default():
                     tf.summary.scalar('reward', total_training_rewards, step=episode)
-            
+                    tf.summary.scalar('deviation', (step_per_episode - total_zero)/total_zero , step=episode)
+
                 total_training_rewards = 0
 
                 if steps_to_update_target_model >= 100:
