@@ -11,7 +11,8 @@ import random
 import numpy as np
 
 import numpy as np
-# import torch
+from tensorflow import keras
+import tensorflow as tf
 
 from variables import *
 # def log_INFO(message):
@@ -182,7 +183,7 @@ class SimStudent():
     self.history = []
     self.history_topic = []
 
-  def step(self, action, zero_list:list):   
+  def step(self, action, zero_list:list, topic:int, topic_feature):   
     reward = 0
     reward_scale = 5
     done = False
@@ -195,8 +196,10 @@ class SimStudent():
       reward-=1
     else:
       pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
-      reward += 1 if not RELATION else pos_zero
-    
+      if topic == 0:
+        reward += 1 if not RELATION else pos_zero
+      else:
+        reward += 1 if not RELATION else STATE_ACTION_SPACE - pos_zero
     self.true_masteries[action] = 1.0
 
     # for i in range(action , len(self.true_masteries)):
@@ -209,7 +212,7 @@ class SimStudent():
       # reward += 100.0
       done = True
 
-    return self._get_obs(self.true_masteries), reward, done, {}
+    return self._get_obs(self.true_masteries, topic_feature), reward, done, {}
 
   def align_action(self, raw_action:np.array):
     '''
@@ -285,10 +288,13 @@ class SimStudent():
     zero_list = [i for i in range(len(self.true_masteries)) if self.true_masteries[i] == 0.0]
     return self._get_obs(self.true_masteries), zero_list
 
-  def _get_obs(self, masteries):
+  def _get_obs(self, masteries, topic_feature = None):
     np_value = np.array([i*1.0 for i in masteries], np.float32)
-    # tensor_value = torch.FloatTensor(np_value)
-    return np_value #.reshape(len(masteries),1)
+    if tf.is_tensor(topic_feature):
+      observation_concate = keras.layers.Concatenate(axis=0)([np_value.reshape([1, np_value.shape[0]]), topic_feature])
+    else: 
+      observation_concate = None
+    return observation_concate, np_value #.reshape(len(masteries),1)
 
   def preview(self):
     print('Learning probability:',self.learn_prob)
