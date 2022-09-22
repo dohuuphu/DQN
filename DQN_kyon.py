@@ -25,8 +25,7 @@ tf.random.set_seed(RANDOM_SEED)
 
 env = SimStudent()
 
-# An episode a full game
-test_episodes = 100
+TOPIC_TABLE = keras.layers.Embedding(NUM_TOPIC, STATE_ACTION_SPACE, input_length=1)
 
 def agent(state_shape, action_shape):
     """ The agent maps X-states to Y-actions
@@ -37,9 +36,13 @@ def agent(state_shape, action_shape):
     learning_rate = 0.001
     init = tf.keras.initializers.HeUniform()
     model = keras.Sequential()
-    model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
+
+    model.add(keras.layers.Conv1D(512, 2, activation='relu',input_shape=state_shape[0:]))
+    # model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
+    model.add(keras.layers.Dense(512, activation='relu', kernel_initializer=init))
+
     model.add(keras.layers.Dense(256, activation='relu', kernel_initializer=init))
-    model.add(keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init))
+    model.add(keras.layers.Dense(action_shape, activation=tf.keras.activations.softmax, kernel_initializer=init))
     model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
 
     return model
@@ -72,7 +75,7 @@ def train(env, replay_memory, model, target_model, done, train_summary_writer, e
         else:
             max_future_q = reward
 
-        current_qs = current_qs_list[index]
+        current_qs = current_qs_list[index][0]
         current_qs[action] = (1 - learning_rate) * current_qs[action] + learning_rate * max_future_q
 
         X.append(observation)
@@ -95,11 +98,11 @@ def main():
     # 1. Initialize the Target and Main models
     # Main Model (updated every 4 steps)
     if not RETRAIN:
-        model = agent((STATE_ACTION_SPACE,), STATE_ACTION_SPACE)
+        model = agent(( 2, STATE_ACTION_SPACE), STATE_ACTION_SPACE)
     else:
         model = keras.models.load_model(f'weight/{MODEL_RETRAIN}')
     # Target Model (updated every 100 steps)
-    target_model = agent((STATE_ACTION_SPACE,), STATE_ACTION_SPACE)
+    target_model = agent(( 2, STATE_ACTION_SPACE), STATE_ACTION_SPACE)
     target_model.set_weights(model.get_weights())
 
     # Init logger
@@ -119,7 +122,7 @@ def main():
     for episode in range(train_episodes):
         total_training_rewards = 0
         step_per_episode = 0
-        observation, zero_list = env.reset()
+        (_, observation), zero_list = env.reset()
         
         total_zero = (observation == 0.0).sum()
 
@@ -130,16 +133,24 @@ def main():
             step_per_episode += 1
 
             random_number = np.random.rand()
+            random_topic = np.array([0])#np.random.randint(0, NUM_TOPIC, size=(1,))
+            topic_feature = TOPIC_TABLE(random_topic)
+
+            # concat topic_feature to observation
+            observation_concate = keras.layers.Concatenate(axis=0)([observation.reshape([1, observation.shape[0]]), topic_feature])
+            # observation_concate = keras.layers.Concatenate(axis=0)([observation, topic_feature])
+
+            # observation_concate = tf.expand_dims(observation_concate, axis=0)
             # 2. Explore using the Epsilon Greedy Exploration Strategy
-            if random_number <= epsilon:
+            if random_number == epsilon:
                 # Explore
                 action = random.randint(0, len(observation) - 1)
             else:
                 # Exploit best known action
                 # model dims are (batch, env.observation_space.n)
-                encoded = observation
-                encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-                predicted = model.predict(encoded_reshaped,verbose = 0).flatten()
+                # encoded = observation
+                # encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
+                predicted = model.predict(tf.expand_dims(observation_concate, axis=0), verbose = 0).flatten()
                 K.clear_session()
                 action = np.argmax(predicted)
 
@@ -149,8 +160,8 @@ def main():
                         action = random.randint(0, len(observation) - 1)
                             
                 old_action = action
-            new_observation, reward, done, info = env.step(action, zero_list)
-            replay_memory.append([observation, action, reward, new_observation, done])
+            (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, int(random_topic), topic_feature)
+            replay_memory.append([observation_concate, action, reward, new_observation_concat, done])
 
             # 3. Update the Main Network using the Bellman Equation
             if steps_to_update_target_model % 4 == 0 or done:
