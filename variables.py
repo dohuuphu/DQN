@@ -1,5 +1,5 @@
 # PARAMETER
-STATE_ACTION_SPACE = 30
+STATE_ACTION_SPACE = 60
 MAX_STEP_EPISODE = 200
 REWARD_LENGTH = True
 RELATION = True
@@ -11,10 +11,10 @@ NUM_TOPIC = 2
 
 # Train
 RETRAIN = False
-MODEL_SAVE = F'action_{STATE_ACTION_SPACE}' + ('_relation' if RELATION else '' )+ ('_length' if REWARD_LENGTH else '')
-MODEL_RETRAIN = ''
+MODEL_SAVE = F'action_{STATE_ACTION_SPACE}' + ('_relation' if RELATION else '' )+ ('_length' if REWARD_LENGTH else '')+"1024"
+MODEL_RETRAIN =  '/home/hoangtv/phudh/DQN/weight/action_80_relation_length'
 
 train_episodes = 10000
 
 # Test
-MODEL_INFERENCE = ''
+MODEL_INFERENCE = '/home/hoangtv/phudh/DQN/weight/action_100_relation_length1024'

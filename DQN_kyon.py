@@ -100,7 +100,7 @@ def main():
     if not RETRAIN:
         model = agent(( 2, STATE_ACTION_SPACE), STATE_ACTION_SPACE)
     else:
-        model = keras.models.load_model(f'weight/{MODEL_RETRAIN}')
+        model = keras.models.load_model(MODEL_RETRAIN)
     # Target Model (updated every 100 steps)
     target_model = agent(( 2, STATE_ACTION_SPACE), STATE_ACTION_SPACE)
     target_model.set_weights(model.get_weights())
@@ -173,14 +173,14 @@ def main():
             # K.clear_session()
             gc.collect()
             if done:
-                print('Total training rewards: {} after n steps = {} with final reward = {}'.format(total_training_rewards, episode, reward))
+                print('Total training rewards: {} after n steps = {} ({}) with final reward = {}'.format(total_training_rewards, step_per_episode, episode, reward))
                 with train_summary_writer.as_default():
                     tf.summary.scalar('reward', total_training_rewards, step=episode)
                     tf.summary.scalar('deviation', (step_per_episode - total_zero)/total_zero , step=episode)
 
                 total_training_rewards = 0
 
-                if steps_to_update_target_model >= 100:
+                if steps_to_update_target_model >= 500:
                     print('Copying main network weights to the target network weights')
                     target_model.set_weights(model.get_weights())
                     steps_to_update_target_model = 0
@@ -196,7 +196,7 @@ def main():
 
 def infer():
 
-    model = keras.models.load_model(f'weight/{MODEL_INFERENCE}')
+    model = keras.models.load_model(MODEL_INFERENCE)
 
     observation, zero_list = env.reset()
     total_zero = (observation == 0.0).sum()
@@ -210,15 +210,15 @@ def infer():
         predicted = model.predict(encoded_reshaped).flatten()
         action = np.argmax(predicted)
         pred_actions.append(action)
-        new_observation, reward, done, info = env.step(action, zero_list)
+        new_observation, reward, done, info = env.step(action, zero_list,0)
         while np.array_equal(observation, new_observation):
-            action = random.randint(0, 19)
-            new_observation, reward, done, info = env.step(action, zero_list)
+            action = random.randint(0, STATE_ACTION_SPACE-1)
+            # new_observation, reward, done, info = env.step(action, zero_list, 0)
         observation = new_observation
 
     miss_pos = np.setdiff1d(pos_zero, pred_actions)
     wrong_pred = np.setdiff1d(pred_actions, pos_zero)
-    print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_pos = {miss_pos}\nwrong_pred = {wrong_pred}')        
+    print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_po {len(miss_pos)}s = {miss_pos}\nwrong_pred = {wrong_pred}')        
 if __name__ == '__main__':
     main()
     # infer()
