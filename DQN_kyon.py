@@ -202,12 +202,12 @@ def infer():
         new_observation, reward, done, info = env.step(action, zero_list,0)
         while np.array_equal(observation, new_observation):
             action = random.randint(0, STATE_ACTION_SPACE-1)
-            new_observation, reward, done, info = env.step(action, zero_list, 0)
+            # new_observation, reward, done, info = env.step(action, zero_list, 0)
         observation = new_observation
 
     miss_pos = np.setdiff1d(pos_zero, pred_actions)
     wrong_pred = np.setdiff1d(pred_actions, pos_zero)
     print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_po {len(miss_pos)}s = {miss_pos}\nwrong_pred = {wrong_pred}')        
 if __name__ == '__main__':
-    # main()
-    infer()
+    main()
+    # infer()
