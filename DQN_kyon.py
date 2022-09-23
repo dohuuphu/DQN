@@ -122,6 +122,7 @@ def main():
     for episode in range(train_episodes):
         total_training_rewards = 0
         step_per_episode = 0
+        current_step = 0
         (_, observation), zero_list = env.reset()
         
         total_zero = (observation == 0.0).sum()
@@ -131,6 +132,7 @@ def main():
         while not done:
             steps_to_update_target_model += 1
             step_per_episode += 1
+            current_step +=1
 
             random_number = np.random.rand()
             random_topic = np.array([0])#np.random.randint(0, NUM_TOPIC, size=(1,))
@@ -160,7 +162,7 @@ def main():
                         action = random.randint(0, len(observation) - 1)
                             
                 old_action = action
-            (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, int(random_topic), topic_feature)
+            (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, current_step, int(random_topic), topic_feature)
             replay_memory.append([observation_concate, action, reward, new_observation_concat, done])
 
             # 3. Update the Main Network using the Bellman Equation
@@ -198,27 +200,30 @@ def infer():
 
     model = keras.models.load_model(MODEL_INFERENCE)
 
-    observation, zero_list = env.reset()
+    (observation_concate, observation), zero_list = env.reset()
     total_zero = (observation == 0.0).sum()
     pos_zero = np.where(observation==0.0)
 
     pred_actions = []
     print(observation)
     while 0.0 in observation:
-        encoded = observation
-        encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-        predicted = model.predict(encoded_reshaped).flatten()
+        # encoded = observation
+        # encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
+        random_topic = np.array([0])#np.random.randint(0, NUM_TOPIC, size=(1,))
+        topic_feature = TOPIC_TABLE(random_topic)
+        observation_concate = keras.layers.Concatenate(axis=0)([observation.reshape([1, observation.shape[0]]), topic_feature])
+        predicted = model.predict(tf.expand_dims(observation_concate, axis=0)).flatten()
         action = np.argmax(predicted)
         pred_actions.append(action)
-        new_observation, reward, done, info = env.step(action, zero_list,0)
+        (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, 0, int(random_topic), topic_feature)
         while np.array_equal(observation, new_observation):
             action = random.randint(0, STATE_ACTION_SPACE-1)
-            # new_observation, reward, done, info = env.step(action, zero_list, 0)
+            (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, 0, int(random_topic), topic_feature)
         observation = new_observation
 
     miss_pos = np.setdiff1d(pos_zero, pred_actions)
     wrong_pred = np.setdiff1d(pred_actions, pos_zero)
     print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_po {len(miss_pos)}s = {miss_pos}\nwrong_pred = {wrong_pred}')        
 if __name__ == '__main__':
-    main()
-    # infer()
+    # main()
+    infer()

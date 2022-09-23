@@ -206,7 +206,7 @@ class SimStudent():
 
     reward -= len(self.history)*0.02 if REWARD_LENGTH else 0
 
-    if not 0.0 in self.true_masteries or current_step >= 500:
+    if not 0.0 in self.true_masteries or current_step >= MAX_STEP_EPISODE:
       done = True
 
     return self._get_obs(self.true_masteries, topic_feature), reward, done, {}
