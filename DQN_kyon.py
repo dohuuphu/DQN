@@ -75,7 +75,7 @@ def train(env, replay_memory, model, target_model, done, train_summary_writer, e
         else:
             max_future_q = reward
 
-        current_qs = current_qs_list[index][0]
+        current_qs = current_qs_list[index]
         current_qs[action] = (1 - learning_rate) * current_qs[action] + learning_rate * max_future_q
 
         X.append(observation)
