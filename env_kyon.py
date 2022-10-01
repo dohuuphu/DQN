@@ -289,8 +289,9 @@ class SimStudent():
 
   def _get_obs(self, masteries, topic_feature = None):
     np_value = np.array([i*1.0 for i in masteries], np.float32)
-    if tf.is_tensor(topic_feature):
-      observation_concate = keras.layers.Concatenate(axis=0)([np_value.reshape([1, np_value.shape[0]]), topic_feature])
+    if topic_feature is not None:#tf.is_tensor(topic_feature):
+      #  observation_concate = keras.layers.Concatenate(axis=1)([np_value.reshape([1, np_value.shape[0]]), topic_feature])
+       observation_concate = np.concatenate((np_value, topic_feature), axis=0)
     else: 
       observation_concate = None
     return observation_concate, np_value #.reshape(len(masteries),1)

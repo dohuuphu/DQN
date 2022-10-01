@@ -25,7 +25,7 @@ tf.random.set_seed(RANDOM_SEED)
 
 env = SimStudent()
 
-TOPIC_TABLE = keras.layers.Embedding(NUM_TOPIC, STATE_ACTION_SPACE, input_length=1)
+TOPIC_TABLE = keras.layers.Embedding(NUM_TOPIC, 5, input_length=1)
 
 def agent(state_shape, action_shape):
     """ The agent maps X-states to Y-actions
@@ -37,8 +37,8 @@ def agent(state_shape, action_shape):
     init = tf.keras.initializers.HeUniform()
     model = keras.Sequential()
 
-    model.add(keras.layers.Conv1D(512, 2, activation='relu',input_shape=state_shape[0:]))
-    # model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
+    # model.add(keras.layers.Conv1D(512, 2, activation='relu',input_shape=state_shape[0:]))
+    model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(512, activation='relu', kernel_initializer=init))
 
     model.add(keras.layers.Dense(256, activation='relu', kernel_initializer=init))
@@ -98,11 +98,11 @@ def main():
     # 1. Initialize the Target and Main models
     # Main Model (updated every 4 steps)
     if not RETRAIN:
-        model = agent(( 2, STATE_ACTION_SPACE), STATE_ACTION_SPACE)
+        model = agent((STATE_ACTION_SPACE+5,), STATE_ACTION_SPACE)
     else:
         model = keras.models.load_model(MODEL_RETRAIN)
     # Target Model (updated every 100 steps)
-    target_model = agent(( 2, STATE_ACTION_SPACE), STATE_ACTION_SPACE)
+    target_model = agent((STATE_ACTION_SPACE+5,), STATE_ACTION_SPACE)
     target_model.set_weights(model.get_weights())
 
     # Init logger
@@ -137,9 +137,12 @@ def main():
             random_number = np.random.rand()
             random_topic = np.array([0])#np.random.randint(0, NUM_TOPIC, size=(1,))
             topic_feature = TOPIC_TABLE(random_topic)
+            topic_feature = tf.squeeze(topic_feature, axis=0)
+            topic_feature = np.array([1,1,1,1,1], np.float32)
 
             # concat topic_feature to observation
-            observation_concate = keras.layers.Concatenate(axis=0)([observation.reshape([1, observation.shape[0]]), topic_feature])
+            observation_concate = np.concatenate((observation, topic_feature), axis=0)
+            # observation_concate = keras.layers.Concatenate(axis=0)([observation, topic_feature])
             # observation_concate = keras.layers.Concatenate(axis=0)([observation, topic_feature])
 
             # observation_concate = tf.expand_dims(observation_concate, axis=0)
@@ -150,9 +153,11 @@ def main():
             else:
                 # Exploit best known action
                 # model dims are (batch, env.observation_space.n)
-                # encoded = observation
-                # encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-                predicted = model.predict(tf.expand_dims(observation_concate, axis=0), verbose = 0).flatten()
+                encoded = observation_concate
+                encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
+                # predicted = model.predict(tf.expand_dims(observation_concate, axis=0), verbose = 0).flatten()
+                predicted = model.predict(encoded_reshaped, verbose = 0).flatten()
+
                 K.clear_session()
                 action = np.argmax(predicted)
 
@@ -225,5 +230,5 @@ def infer():
     wrong_pred = np.setdiff1d(pred_actions, pos_zero)
     print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_po {len(miss_pos)}s = {miss_pos}\nwrong_pred = {wrong_pred}')        
 if __name__ == '__main__':
-    # main()
-    infer()
+    main()
+    # infer()
