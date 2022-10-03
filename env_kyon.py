@@ -2,10 +2,10 @@
 # from utils_ import sigmoid, test_gen, test_gen_after, topic_recommender, mask_others_lp_not_in_topic
 
 
-from gym import spaces
+# from gym import spaces
 from collections import Counter
 import ast
-from gym.spaces.box import Box
+# from gym.spaces.box import Box
 # from params import train_params
 import random
 import numpy as np
@@ -23,7 +23,7 @@ class SimStudent():
       # An observation of the environment is a list of skill mastery, each value [0,1] represents the student's learning progress of a skill
   def __init__(self, intelligence = 50, luck=50, level = "10"):
     self.observation_space = [0, 1, 80] # min max shape
-    self.action_space = Box(0.,80.,(1,))
+    # self.action_space = Box(0.,80.,(1,))
     self.v_min = -100.0
     self.v_max = 0.
 
@@ -196,10 +196,11 @@ class SimStudent():
       reward-=1
     else:
       pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
-      if topic == 0:
-        reward += 1 if not RELATION else pos_zero
-      else:
-        reward += 1 if not RELATION else STATE_ACTION_SPACE - pos_zero
+      reward += pos_zero
+      # if topic == 0:
+      #   reward += 1 if not RELATION else pos_zero
+      # else:
+      #   reward += 1 if not RELATION else STATE_ACTION_SPACE - pos_zero
     self.true_masteries[action] = 1.0
 
     

@@ -39,7 +39,7 @@ def agent(state_shape, action_shape):
 
     # model.add(keras.layers.Conv1D(512, 2, activation='relu',input_shape=state_shape[0:]))
     model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
-    model.add(keras.layers.Dense(512, activation='relu', kernel_initializer=init))
+    # model.add(keras.layers.Dense(512, activation='relu', kernel_initializer=init))
 
     model.add(keras.layers.Dense(256, activation='relu', kernel_initializer=init))
     model.add(keras.layers.Dense(action_shape, activation=tf.keras.activations.softmax, kernel_initializer=init))

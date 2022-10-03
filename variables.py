@@ -11,7 +11,7 @@ NUM_TOPIC = 2
 
 # Train
 RETRAIN = False
-MODEL_SAVE = F'action_{STATE_ACTION_SPACE}' + ('_relation' if RELATION else '' )+ ('_length' if REWARD_LENGTH else '')+"1024"
+MODEL_SAVE = F'action_{STATE_ACTION_SPACE}' + ('_relation' if RELATION else '' )+ ('_length' if REWARD_LENGTH else '')
 MODEL_RETRAIN =  '/home/hoangtv/phudh/DQN/weight/action_80_relation_length'
 
 train_episodes = 10000
