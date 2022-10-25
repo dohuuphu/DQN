@@ -14,10 +14,8 @@ import numpy as np
 from tensorflow import keras
 import tensorflow as tf
 
-from variables import *
-# def log_INFO(message):
-#   # print(message)
-#   logger.info(message)
+from utils.variables import *
+
   
 class SimStudent():
       # An observation of the environment is a list of skill mastery, each value [0,1] represents the student's learning progress of a skill
@@ -183,7 +181,7 @@ class SimStudent():
     self.history = []
     self.history_topic = []
 
-  def step(self, action, zero_list:list, current_step:int, topic:int, topic_feature):   
+  def step(self, action, zero_list:list, current_step:int, topic:int):   
     reward = 0
     reward_scale = 5
     done = False
@@ -195,12 +193,16 @@ class SimStudent():
       # reward -= reward_scale*2
       reward-=1
     else:
-      pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
-      reward += pos_zero
-      # if topic == 0:
-      #   reward += 1 if not RELATION else pos_zero
-      # else:
-      #   reward += 1 if not RELATION else STATE_ACTION_SPACE - pos_zero
+      if topic == 0:
+        pos_zero = zero_list.index(action)#/len(self.true_masteries)*reward_scale
+        reward += pos_zero
+        # if topic == 0:
+        #   reward += 1 if not RELATION else pos_zero
+        # else:
+        #   reward += 1 if not RELATION else STATE_ACTION_SPACE - pos_zero
+      else:
+        pos_zero = len(zero_list) - zero_list.index(action)
+        reward += pos_zero
     self.true_masteries[action] = 1.0
 
     
@@ -210,7 +212,7 @@ class SimStudent():
     if not 0.0 in self.true_masteries or current_step >= MAX_STEP_EPISODE:
       done = True
 
-    return self._get_obs(self.true_masteries, topic_feature), reward, done, {}
+    return self._get_obs(self.true_masteries), reward, done, {}
 
   def align_action(self, raw_action:np.array):
     '''
@@ -277,10 +279,11 @@ class SimStudent():
 
     return np.array(reward, dtype=np.float32), done
 
-  def reset(self):
-    # self.true_masteries =  ast.literal_eval(open('/mnt/c/Users/dohuu/Desktop/kyons_AI/Deep-Reinforcement-Learning-in-Large-Discrete-Action-Spaces/fix_masteries.txt', 'r').read())
-    # self.true_masteries = np.random.randint(2, size=STATE_ACTION_SPACE)
-    self.true_masteries = np.random.choice([0,1], p=[0.9, 0.1], size= STATE_ACTION_SPACE)
+  def reset(self, observation=None):
+    if observation is not None:
+      self.true_masteries = observation.copy()
+    else:
+      self.true_masteries = np.random.choice([0,1], p=[0.9, 0.1], size= STATE_ACTION_SPACE)
 
     self.history = []
 
@@ -288,14 +291,9 @@ class SimStudent():
     zero_list = [i for i in range(len(self.true_masteries)) if self.true_masteries[i] == 0.0]
     return self._get_obs(self.true_masteries), zero_list
 
-  def _get_obs(self, masteries, topic_feature = None):
+  def _get_obs(self, masteries):
     np_value = np.array([i*1.0 for i in masteries], np.float32)
-    if topic_feature is not None:#tf.is_tensor(topic_feature):
-      #  observation_concate = keras.layers.Concatenate(axis=1)([np_value.reshape([1, np_value.shape[0]]), topic_feature])
-       observation_concate = np.concatenate((np_value, topic_feature), axis=0)
-    else: 
-      observation_concate = None
-    return observation_concate, np_value #.reshape(len(masteries),1)
+    return np_value
 
   def preview(self):
     print('Learning probability:',self.learn_prob)

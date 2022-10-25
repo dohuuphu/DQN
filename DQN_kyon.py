@@ -1,112 +1,120 @@
-import tensorflow as tf
-
-import numpy as np
-from tensorflow import keras
-import gc
-
-import keras.backend as K
-from collections import deque
-import datetime
-import random
-from env_kyon import SimStudent
-from variables import *
 import os
+import gc
+import random
+import numpy as np
+import tensorflow as tf
+import keras.backend as K
+
+from tensorflow import keras
+from collections import deque
+
+from env_kyon import SimStudent
+from utils.variables import *
+
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"   
 
 RANDOM_SEED = 5
 tf.random.set_seed(RANDOM_SEED)
 
-# env = gym.make('CartPole-v1')
-# env.seed(RANDOM_SEED)
-# np.random.seed(RANDOM_SEED)
-
-# print("Action Space: {}".format(env.action_space))
-# print("State space: {}".format(env.observation_space))
-
 env = SimStudent()
 
-TOPIC_TABLE = keras.layers.Embedding(NUM_TOPIC, 5, input_length=1)
+class Agent(keras.Model):
+    def __init__(self, action_shape, number_topic):
+        super().__init__()
+        init = tf.keras.initializers.HeUniform()
 
-def agent(state_shape, action_shape):
-    """ The agent maps X-states to Y-actions
-    e.g. The neural network output is [.1, .7, .1, .3]
-    The highest value 0.7 is the Q-Value.
-    The index of the highest action (0.7) is action #1.
-    """
-    learning_rate = 0.001
-    init = tf.keras.initializers.HeUniform()
-    model = keras.Sequential()
+        self.dense1 = keras.layers.Dense(1024, activation=tf.nn.tanh, kernel_initializer=init)
+        self.dense2 = keras.layers.Dense(512, activation=tf.nn.tanh, kernel_initializer=init)
+        # self.dense3 = keras.layers.Dense(256, activation=tf.nn.tanh, kernel_initializer=init)
+        self.dense4 = keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init)
+        self.topic_embedding = keras.layers.Embedding(number_topic, 8, input_length=1, trainable=False)
 
-    # model.add(keras.layers.Conv1D(512, 2, activation='relu',input_shape=state_shape[0:]))
-    model.add(keras.layers.Dense(512, input_shape=state_shape, activation='relu', kernel_initializer=init))
-    # model.add(keras.layers.Dense(512, activation='relu', kernel_initializer=init))
 
-    model.add(keras.layers.Dense(256, activation='relu', kernel_initializer=init))
-    model.add(keras.layers.Dense(action_shape, activation=tf.keras.activations.softmax, kernel_initializer=init))
-    model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+    def call(self, inputs):
+        (observation, topic_ids) = inputs
+        topic_embedding = self.topic_embedding(topic_ids)
 
-    return model
+        x = self.dense1(observation)
+        x = keras.layers.Concatenate(axis=1)([x, topic_embedding])
+        x = self.dense2(x)
+        # x = self.dense3(x)
+        output = self.dense4(x)
+        return output
 
-def get_qs(model, state, step):
-    return model.predict(state.reshape([1, state.shape[0]]))[0]
 
-def train(env, replay_memory, model, target_model, done, train_summary_writer, episode):
+def train(replay_memory, model, target_model, done, train_summary_writer, episode):
     learning_rate = 0.7 # Learning rate
     discount_factor = 0.618
 
-    MIN_REPLAY_SIZE = 1000
+    MIN_REPLAY_SIZE = 500
     if len(replay_memory) < MIN_REPLAY_SIZE:
         return
 
     batch_size = 64 * 2
     mini_batch = random.sample(replay_memory, batch_size)
-    current_states = np.array([transition[0] for transition in mini_batch])
-    current_qs_list = model.predict(current_states,verbose = 0)
-    new_current_states = np.array([transition[3] for transition in mini_batch])
-    future_qs_list = target_model.predict(new_current_states,verbose = 0)
+
+    current_states = []
+    current_topicID = []
+    new_states = []
+    for transition in mini_batch:
+        state = transition[0]
+        current_states.append(state.reshape([1, state.shape[0]]))
+
+        topic_number = transition[1]
+        current_topicID.append(topic_number)
+
+        new_state = transition[4]
+        new_states.append(new_state.reshape([1, new_state.shape[0]]))
+    
+    current_states = np.vstack(current_states)
+    new_states = np.vstack(new_states)
+
+    current_qs_list = model((current_states, np.array(current_topicID))).numpy()
+    future_qs_list = target_model((new_states, np.array(current_topicID))).numpy()
     K.clear_session()
 
 
     X = []
     Y = []
-    for index, (observation, action, reward, new_observation, done) in enumerate(mini_batch):
+    T = []
+    for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
         if not done:
             max_future_q = reward + discount_factor * np.max(future_qs_list[index])
         else:
             max_future_q = reward
 
         current_qs = current_qs_list[index]
-        current_qs[action] = (1 - learning_rate) * current_qs[action] + learning_rate * max_future_q
+        current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
 
         X.append(observation)
         Y.append(current_qs)
+        T.append(topic_number)
         
-    his = model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
-    # print(list(his.history.values())[0])
+    his = model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
+
     with train_summary_writer.as_default():
         tf.summary.scalar('loss', his.history['loss'][0], step=episode)
         tf.summary.scalar('acc', his.history['accuracy'][0], step=episode)
 
     
 def main():
-    epsilon = 1 # Epsilon-greedy algorithm in initialized at 1 meaning every step is random at the start
+    epsilon = 0.1 # Epsilon-greedy algorithm in initialized at 1 meaning every step is random at the start
     max_epsilon = 1 # You can't explore more than 100% of the time
     min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
     decay = 0.01
-    
+    learning_rate = 0.001
 
-    # 1. Initialize the Target and Main models
-    # Main Model (updated every 4 steps)
-    if not RETRAIN:
-        model = agent((STATE_ACTION_SPACE+5,), STATE_ACTION_SPACE)
-    else:
-        model = keras.models.load_model(MODEL_RETRAIN)
-    # Target Model (updated every 100 steps)
-    target_model = agent((STATE_ACTION_SPACE+5,), STATE_ACTION_SPACE)
+    # Init model
+    model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+    target_model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+
+    model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+    target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+
     target_model.set_weights(model.get_weights())
 
     # Init logger
-    train_log_dir =  "logs/" + MODEL_SAVE + '/reward'
+    train_log_dir =  "output/logs/" + MODEL_SAVE 
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
     replay_memory = deque(maxlen=1_500)
@@ -123,7 +131,7 @@ def main():
         total_training_rewards = 0
         step_per_episode = 0
         current_step = 0
-        (_, observation), zero_list = env.reset()
+        observation, zero_list = env.reset()
         
         total_zero = (observation == 0.0).sum()
 
@@ -135,100 +143,57 @@ def main():
             current_step +=1
 
             random_number = np.random.rand()
-            random_topic = np.array([0])#np.random.randint(0, NUM_TOPIC, size=(1,))
-            topic_feature = TOPIC_TABLE(random_topic)
-            topic_feature = tf.squeeze(topic_feature, axis=0)
-            topic_feature = np.array([1,1,1,1,1], np.float32)
+            topic_number = random.randint(0, NUM_TOPIC - 1)
 
-            # concat topic_feature to observation
-            observation_concate = np.concatenate((observation, topic_feature), axis=0)
-            # observation_concate = keras.layers.Concatenate(axis=0)([observation, topic_feature])
-            # observation_concate = keras.layers.Concatenate(axis=0)([observation, topic_feature])
-
-            # observation_concate = tf.expand_dims(observation_concate, axis=0)
             # 2. Explore using the Epsilon Greedy Exploration Strategy
-            if random_number == epsilon:
+            if random_number <= epsilon:
                 # Explore
                 action = random.randint(0, len(observation) - 1)
             else:
                 # Exploit best known action
                 # model dims are (batch, env.observation_space.n)
-                encoded = observation_concate
+                encoded = observation
                 encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-                # predicted = model.predict(tf.expand_dims(observation_concate, axis=0), verbose = 0).flatten()
-                predicted = model.predict(encoded_reshaped, verbose = 0).flatten()
-
+                predicted = model((encoded_reshaped, np.array([topic_number])))
                 K.clear_session()
                 action = np.argmax(predicted)
 
-                # random action
+                # random action after explore 
                 if old_action == action:
                     if random.randint(0,1):
-                        action = random.randint(0, len(observation) - 1)
+                        action = random.choice(zero_list)
                             
                 old_action = action
-            (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, current_step, int(random_topic), topic_feature)
-            replay_memory.append([observation_concate, action, reward, new_observation_concat, done])
+            new_observation, reward, done, _ = env.step(action, zero_list, current_step, topic_number)
+            replay_memory.append([observation, topic_number, action, reward, new_observation, done])
 
             # 3. Update the Main Network using the Bellman Equation
             if steps_to_update_target_model % 4 == 0 or done:
-                train(env, replay_memory, model, target_model, done, train_summary_writer, episode)
+                train(replay_memory, model, target_model, done, train_summary_writer, episode)
 
             observation = new_observation
             total_training_rewards += reward
     
-            # K.clear_session()
             gc.collect()
             if done:
-                print('Total training rewards: {} after n steps = {} ({}) with final reward = {}'.format(total_training_rewards, step_per_episode, episode, reward))
+                print('Total training rewards: {} after n steps = {}/{} ({}) with final reward = {}'.format(total_training_rewards, step_per_episode, total_zero, episode, reward))
                 with train_summary_writer.as_default():
                     tf.summary.scalar('reward', total_training_rewards, step=episode)
                     tf.summary.scalar('deviation', (step_per_episode - total_zero)/total_zero , step=episode)
+                    tf.summary.scalar('epsilon', epsilon, step=episode)
 
                 total_training_rewards = 0
 
-                if steps_to_update_target_model >= 500:
+                if steps_to_update_target_model >= STEP_UPDATE_TARGETR_MODEL:
                     print('Copying main network weights to the target network weights')
                     target_model.set_weights(model.get_weights())
                     steps_to_update_target_model = 0
                 break
         
-        if episode %100 == 0:
-            print("save model =======")
-            model.save(f'weight/{MODEL_SAVE}')
+        if episode % NUM_EPISODE_TO_SAVE_MODEL == 0:
+            model.save(f'/output/weight/{MODEL_SAVE}')
 
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         
-    # env.close()
-
-def infer():
-
-    model = keras.models.load_model(MODEL_INFERENCE)
-
-    (observation_concate, observation), zero_list = env.reset()
-    total_zero = (observation == 0.0).sum()
-    pos_zero = np.where(observation==0.0)
-
-    pred_actions = []
-    print(observation)
-    while 0.0 in observation:
-        # encoded = observation
-        # encoded_reshaped = encoded.reshape([1, encoded.shape[0]])
-        random_topic = np.array([0])#np.random.randint(0, NUM_TOPIC, size=(1,))
-        topic_feature = TOPIC_TABLE(random_topic)
-        observation_concate = keras.layers.Concatenate(axis=0)([observation.reshape([1, observation.shape[0]]), topic_feature])
-        predicted = model.predict(tf.expand_dims(observation_concate, axis=0)).flatten()
-        action = np.argmax(predicted)
-        pred_actions.append(action)
-        (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, 0, int(random_topic), topic_feature)
-        while np.array_equal(observation, new_observation):
-            action = random.randint(0, STATE_ACTION_SPACE-1)
-            (new_observation_concat, new_observation), reward, done, info = env.step(action, zero_list, 0, int(random_topic), topic_feature)
-        observation = new_observation
-
-    miss_pos = np.setdiff1d(pos_zero, pred_actions)
-    wrong_pred = np.setdiff1d(pred_actions, pos_zero)
-    print(f'numzero = {total_zero}/{len(pred_actions)}\npos = {pos_zero}\npred = {pred_actions}\nmiss_po {len(miss_pos)}s = {miss_pos}\nwrong_pred = {wrong_pred}')        
 if __name__ == '__main__':
     main()
-    # infer()
