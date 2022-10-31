@@ -1,4 +1,6 @@
-# PARAMETER
+# ====== PARAMETER ======
+
+# Model
 STATE_ACTION_SPACE = 30
 MAX_STEP_EPISODE = 200
 STEP_UPDATE_TARGETR_MODEL = 500
@@ -20,3 +22,26 @@ train_episodes = 10000
 
 # Test
 MODEL_INFERENCE = '/home/ubuntu/DQN/weight/action_30_relation_length_2feature'
+
+# Logging
+SYSTEM_LOG = 'system_logger'
+RECOMMEND_LOG = 'recommender_logger'
+CHECKDONE_LOG = 'checkdone_logger'
+
+SYSTEM_PATH = 'logs/system.log'
+RECOMMEND_PATH = 'logs/recommender.log'
+CHECKDONE_PATH = 'logs/check_done.log'
+
+
+
+#Config database
+COLLECTION_PATH = "mongodb://localhost:27017"
+MONGODB_NAME = "AI_Kyons_new"
+COLLECTION_NAME = "data_beta"
+COLLECTION_DATA = "data_lesson"
+
+
+
+# Fixed name
+DONE = 'done'
+INPROCESS = 'inprocess'
