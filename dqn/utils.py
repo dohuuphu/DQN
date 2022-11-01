@@ -5,14 +5,14 @@ import numpy as np
 
 from threading import Lock
 
-def safety_thread(func):
-    @functools.wraps(func)
-    def threading_lock(locker:Lock, *args, **kwargs):
-        locker.acquire()
-        result = func(*args, **kwargs)
-        locker.release()
-        return result
-    return threading_lock
+# def safety_thread(func):
+#     @functools.wraps(func)
+#     def threading_lock(locker:Lock, *args, **kwargs):
+#         locker.acquire()
+#         result = func(*args, **kwargs)
+#         locker.release()
+#         return result
+#     return threading_lock
 
 def timer(func):
     @functools.wraps(func)
@@ -60,37 +60,9 @@ def read_from_DB(student_id:str, subject:str, level:int):
     return action, topic_id, zero_list, observation
     
 @safety_thread
-def write_to_DB(student_id:str, subject:str, level:int, masteries_of_topic:dict, action_index:int, action_id:int, prev_score:list, topic_name:str):
+def write_to_DB( student_id:str, subject:str, level:int, masteries_of_topic:dict, action_index:int, action_id:int, prev_score:list, topic_name:str):
 
-    check_exist_student_id = database.mycol.count_documents({"student_id":student_id})
-    if not check_exist_student_id:
-        database.mycol.insert_one(
-            {
-                "student_id":student_id,
-                "subject":
-                {
-                    subject:{
-                        level:{
-                            "mocktest_1":{
-                                "status":"inprocess",
-                                "base_score": prev_score,
-                                topic_name:[
-                                    {
-                                        "action_recommend": action_index,
-                                        "action_ID": action_id,
-                                        "score": None,
-                                        "masteries":masteries_of_topic
-                                    }
-                                ],
-                                "id" : 1,
-                                "flow":1,
-                                "status":"inprocess"
-                            }
-                        }
-                    }
-                }
-            }
-        )
+    
     
     '''	
         - student_id

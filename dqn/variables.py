@@ -38,7 +38,7 @@ CHECKDONE_PATH = 'logs/check_done.log'
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI_Kyons_new"
 COLLECTION_NAME = "data_beta"
-COLLECTION_DATA = "data_lesson"
+COLLECTION_DATA = "data_lesson_new"
 
 
 

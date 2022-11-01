@@ -13,23 +13,25 @@ from dqn.variables import CHECKDONE_LOG, RECOMMEND_LOG, SYSTEM_LOG
 
 
 class Item(BaseModel):
-    student_id: str
-    subject: str
+    user_id:str
+    user_mail:str
+    subject:str
     program_level:int
-    masteries: dict = {}
-    history_score: list = []
+    plan_name:str
+    masteries_of_test:dict = {}
+    score:list = []
 
 def route_setup(app, RL_model):
     executor = ThreadPoolExecutor()
 
     def execute_api(item: Item):
         try:
-            action, infer_time = RL_model.get_learning_point(item.student_id, item.subject, item.program_level, item.masteries, item.history_score)
+            action, infer_time = RL_model.get_learning_point(item)
         except OSError as e:
             action = -1
         
         # Logging
-        info = f'user_INFO: {item.student_id}_{item.subject}_{str(item.program_level)}|prev_score: {item.history_score}|new_lesson: {action}|process_time: {infer_time:.3f}s - {item.masteries}'
+        info = f'user_INFO: {item.user_id}_{item.subject}_{str(item.program_level)}|prev_score: {item.history_score}|new_lesson: {action}|process_time: {infer_time:.3f}s - {item.masteries_of_test}'
         logging.getLogger(RECOMMEND_LOG).info(info)
 
 
@@ -43,10 +45,10 @@ def route_setup(app, RL_model):
 
     @app.get('/check_done_program')
     def check_done_program(item: Item):
-        is_done, infer_time = RL_model.is_done_program(item.student_id, item.subject, item.program_level)
+        is_done, infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level)
 
         # Logging
-        info = f'user_INFO: {item.student_id}_{item.subject}_{str(item.program_level)}|is_done: {is_done}|process_time: {infer_time:.3f}s'
+        info = f'user_INFO: {item.user_id}_{item.subject}_{str(item.program_level)}|is_done: {is_done}|process_time: {infer_time:.3f}s'
         logging.getLogger(CHECKDONE_LOG).info(info)
 
         return APIResponse.json_format(is_done)

@@ -40,20 +40,19 @@ class GetReturnForBackend():
                         "Vocabulary":dict()
                     }}
         for index, topic in enumerate(topics):
-            # if index < 3:
-            list_lp_10 = []
-            list_lp_11 = []
-            list_lp_12 = []
+            list_lp_10 = dict()
+            list_lp_11 = dict()
+            list_lp_12 = dict()
             df_temp = df.loc[(df['topic'] == topic)].values
             for i in range(len(df_temp)):
                 if 10 in df_temp[i][5]:
-                    list_lp_10.append(df_temp[i][0])
+                    list_lp_10[str(df_temp[i][0])]=1
                     lesson['10'][df_temp[i][3]].update({topic: list_lp_10})
                 if 11 in df_temp[i][5]:
-                    list_lp_11.append(df_temp[i][0])
+                    list_lp_11[str(df_temp[i][0])]=1
                     lesson['11'][df_temp[i][3]].update({topic: list_lp_11})
                 if 12 in df_temp[i][5]:
-                    list_lp_12.append(df_temp[i][0])
+                    list_lp_12[str(df_temp[i][0])]=1
                     lesson['12'][df_temp[i][3]].update({topic: list_lp_12})
         return {"English":lesson}
 

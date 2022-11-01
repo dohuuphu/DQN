@@ -13,7 +13,8 @@ from collections import deque
 from dqn.variables import *
 from dqn.utils import *
 from dqn.environment import SimStudent
-from dqn.database import MongoDb
+from dqn.database import MongoDb, Format_reader, User
+from api.route import Item
 
 class Agent(keras.Model):
     def __init__(self, action_shape, number_topic):
@@ -177,33 +178,32 @@ class Recommend_core():
         return action 
 
     @timer
-    def get_learning_point(self, student_ID:str, subject:str, level:int, masteries_of_test:dict, prev_score:list):
+    def get_learning_point(self, inputs:Item): 
         # Processing input and store database
-        # prev_action_index, prev_topic_id, prev_zero_list, prev_observation = read_from_DB(self.lock, student_ID, subject, level)
-        prev_action = 1
-        prev_action_index = 2
-        prev_topic_id = 1
-        prev_observation = np.array([0.0, 1.0, 0.0, 0.0, 0.0])
-        prev_zero_list = [i for i in prev_observation if i == 0.0]
+        data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.subject, str(inputs.program_level), inputs.plan_name)
 
+        flow_topic = None
+        init_score = None
+        topic_status = INPROCESS
+
+
+
+
+        if data_readed.prev_action is None :  # new user or done toptic
+            flow_topic = self.database.prepare_flow_topic(inputs.masteries_of_test)
+            curr_topic_name = flow_topic[0]
+            prev_action = None
+            
         
-        flow_topic = self.database.prepare_flow_topic(masteries_of_test)
-        masteries_of_topic:dict = self.database.get_topic_masteries(flow_topic[0],masteries_of_test) # process from masteries_of_test
-        curr_observation:list = None # process from masteries_of_topic
-        curr_topic_id:int = None # process from masteries_of_test
+        else: 
+            prev_action = data_readed.prev_action
+            # Get prev_observation 
+            masteries_of_topic:dict = self.database.get_topic_masteries(data_readed.topic_name, inputs.masteries_of_test) # process from masteries_of_test
+            curr_observation:list = list(masteries_of_topic.values())
 
-        # Check complete course
-        # if not 0.0 in curr_observation:
-        #     return None
-
-
-        # Take action
-        action_index = 0# self.predict_action(observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=prev_zero_list, prev_action=prev_action)
-        action_id = 99 # process from action index
-
-        # Calculate reward for prev_observation and Store experience
-        if prev_action is not None:         
-            reward, done = self.env.step_api(prev_action, prev_zero_list, prev_score)
+            # Calculate reward for prev_observation and store experience  
+            curr_topic_id = 1 # Process from curr_topic_name
+            reward, done = self.env.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score[0])
 
             # Update episode
             if done:
@@ -212,12 +212,49 @@ class Recommend_core():
                 self.lock.release
 
             self.lock.acquire()
-            self.replay_memory.append([prev_observation, prev_topic_id, prev_action_index, reward, curr_observation, done])
+            self.replay_memory.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
             self.lock.release()
 
+            # Check topic is DONE
+            if 0 not in curr_observation:
+                topic_status = DONE
+                next_topic = data_readed.total_topic.index(data_readed.topic_name) + 1 
+                if next_topic >= len(data_readed.total_topic):
+                    # Update info to database
+                    info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
+                                level = inputs.program_level, plan_name = inputs.plan_name, prev_score =  inputs.score,     # depend on inputs
+                                topic_masteries = masteries_of_topic, action_index = None, action_id = None,
+                                topic_name = curr_topic_name, init_score = init_score, flow_topic = flow_topic, 
+                                path_status = DONE, topic_status = DONE)
+                    self.lock.acquire()
+                    self.database.write_to_DB(info)
+                    self.lock.release()
+                    return None
+                else:
+                    # Get next topic
+                    curr_topic_name = next_topic
+                    
+        # Get lasted masteries, topic
+        masteries_of_topic:dict = self.database.get_topic_masteries(curr_topic_name, inputs.masteries_of_test) # process from masteries_of_test
+        curr_observation:list = list(masteries_of_topic.values())
+        curr_topic_id:int = None # process from curr_topic_name
+        curr_zero_list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
+
+        # Take action
+        action_index = self.predict_action(observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
+        action_id = 99 # process from action index
+
+       
         # Update info to database
-        # write_to_DB(self.lock, student_id=student_ID, subject=subject, level=level, masteries_of_topic=None,
-        #              action_index=action_index, action_id=action_id, prev_score=prev_score)
+        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,
+                    level = inputs.program_level, plan_name = inputs.plan_name, prev_score =  inputs.score, 
+                    topic_masteries = masteries_of_topic, action_index = action_index, action_id = action_id,
+                    topic_name = curr_topic_name, init_score = init_score, flow_topic = flow_topic, 
+                    path_status = INPROCESS, topic_status = topic_status)
+        
+        self.lock.acquire()
+        self.database.write_to_DB(info)
+        self.lock.release()
 
         gc.collect()
 
