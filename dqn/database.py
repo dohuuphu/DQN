@@ -332,23 +332,17 @@ class MongoDb:
         try:
             doc = self.user_db.find({'user_id': user_id })[0]
             exist_plan = list(doc['subject'][subject][level].keys())
-            
-            # Update New plan
-            if curr_plan_name not in exist_plan:
-                # Update status of prev_plan
-                prev_plan_name = exist_plan[-1]
-                value = {f'subject.{subject}.{level}.{prev_plan_name}.status:{PENDING}'}
-                self.user_db.update_one({'user_id': user_id }, {'$set':value})
 
             # Update DONE plane
-            else:
-                value = {f'subject.{subject}.{level}.{prev_plan_name}.status:{DONE}'}
+            if curr_plan_name in exist_plan:
+                value = {f'subject.{subject}.{level}.{curr_plan_name}.status' : DONE}
                 self.user_db.update_one({'user_id': user_id }, {'$set':value})
-
 
             # Log info new path with interuption
         except: # new user
-            pass
+            pass 
+        
+       
     
     def update_total_masteries(self, user_id:str, subject:str, level:str, plan_name:str, BE_masteies:dict):
         

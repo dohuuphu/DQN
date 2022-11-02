@@ -193,8 +193,7 @@ class Recommend_core():
             prev_action = None
             init_score = inputs.score
             total_masteries = inputs.masteries
-            # Update status of prev_plan if the plan was interupted
-            self.database.update_interuptedPlan(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name)
+
         
         # Exist plan
         else: 
