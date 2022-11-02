@@ -3,7 +3,7 @@ import logging
 import pymongo
 import zlib
 
-from variables import *
+from dqn.variables import *
 from threading import Lock
 
 
@@ -15,13 +15,13 @@ class Format_reader():
         self.zero_list = zero_list
         self.observation = observation
 
-class Format_writer():
-    def __init__(self, **kwarg) -> None:
-        pass
+# class Format_writer():
+#     def __init__(self, **kwarg) -> None:
+#         pass
         
 
 class User():
-    def __init__(self, user_id:str, user_mail:str, subject:str, level:int, plan_name:str, topic_masteries:dict, action_index:int, action_id:int, prev_score:list, topic_name:str, init_score:int = None, flow_topic:list=None, path_status:str=INPROCESS, topic_status:str=INPROCESS) -> None:
+    def __init__(self, user_id:str, user_mail:str, subject:str, level:int, plan_name:str,  total_masteries:dict, topic_masteries:dict, action_index:int, action_id:int, prev_score:int, topic_name:str, init_score:int = None, flow_topic:list=None) -> None:
         self.id = user_id
         self.mail = user_mail
         self.subject= subject
@@ -31,14 +31,13 @@ class User():
         
         self.init_score = init_score
         self.topic_name = topic_name
-
+        self.total_masteries = total_masteries
         self.topic_masteries = topic_masteries
         self.action_index = action_index
         self.action_id = action_id
         self.prev_score = prev_score
         
-        self.path_status = path_status
-        self.topic_status = topic_status 
+        self.path_status = INPROCESS
 
 class Data_formater():
     def __init__(self, user:User) -> None:
@@ -64,6 +63,7 @@ class Data_formater():
         return {key:{
                         "status": self.user.path_status,
                         "total_topic": self.user.flow_topic,
+                        "total_masteries": self.user.total_masteries,
                         "init_score": self.user.init_score,
                         "flow": self.topic_info()
                     }}
@@ -88,6 +88,7 @@ class Data_formater():
 
     def get_step_path(self):
         return f'subject.{self.user.subject}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}'
+    
 
 class MongoDb:
     def __init__(self):
@@ -195,14 +196,16 @@ class MongoDb:
 
     def get_topic_masteries(self,  subject:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
         content = self.content_doc[subject][level].copy()
+        topic_masteries = None
         for category in content:
             if topic_name in content[category]:
                 topic_masteries = content[category][topic_name]
                 for lesson_id in total_masteries:
                     if lesson_id in topic_masteries:
                         topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
-            else:
-                print('topic does not exist in database')
+
+        if topic_masteries is None:
+            print('topic does not exist in database')
 
         return  topic_masteries
 
@@ -231,7 +234,7 @@ class MongoDb:
         dict_topic_weight = self.calculate_topic_weight(dict_exist_topic)
  
         flow_topic = [topic_name for topic_name, _ in dict_topic_weight]
-        return flow_topic,  dict_exist_topic[flow_topic[0]]
+        return flow_topic#,  dict_exist_topic[flow_topic[0]]
     
     def calculate_topic_weight(self,  dict_topic:dict)->dict:
         dict_topic_weight = {}
@@ -257,11 +260,9 @@ class MongoDb:
 
         return None, None
 
-
-    def read_from_DB(self, user_id:str, subject:str, level:int, plan_name:str):
-
-        doc = self.user_db.find({'user_id': user_id })[0]
+    def read_from_DB(self, user_id:str, subject:str, level:str, plan_name:str):      
         try:
+            doc = self.user_db.find({'user_id': user_id })[0]
             total_topic = doc['subject'][subject][level][plan_name]['total_topic']
             dict_flow = doc['subject'][subject][level][plan_name]['flow']
             prev_topic_name:str = list(dict_flow.keys())[-1]
@@ -280,7 +281,7 @@ class MongoDb:
     def write_to_DB(self, raw_info:User):
         
         # Preprocess data
-        parsed_user = self.preprocess_userInfo(raw_info)
+        parsed_user = raw_info #self.preprocess_userInfo(raw_info)
 
         # Formated data 
         data = Data_formater(parsed_user)
@@ -307,9 +308,9 @@ class MongoDb:
             self.user_db.update_one(user_indentify, {'$set':data.topic_info(prefix)})
 
         else:
-            self.update_step(data)
             self.update_prev_score(data)
-
+            self.update_step(data)
+           
     def update_step(self, data:Data_formater):
         myquery = {"user_id":data.user.id}
         step_path = data.get_step_path()
@@ -320,11 +321,55 @@ class MongoDb:
     def update_prev_score(self, data:Data_formater):
         myquery = {"user_id":data.user.id}
         doc = self.user_db.find(myquery)[0]
-        prev_step = len(doc['subject'][data.user.subject][data.user.level][data.user.plan_name]['flow'][data.user.topic_name]) - 2 
+        prev_step = len(doc['subject'][data.user.subject][data.user.level][data.user.plan_name]['flow'][data.user.topic_name]) - 1
         score_path = data.get_score_path(prev_step)
 
         new_val = {"$set":{score_path : data.user.prev_score} }
         self.user_db.update_one(myquery, new_val)
+
+
+    def update_interuptedPlan(self, user_id:str, subject:str, level:str, curr_plan_name:str):
+        try:
+            doc = self.user_db.find({'user_id': user_id })[0]
+            exist_plan = list(doc['subject'][subject][level].keys())
+            
+            # Update New plan
+            if curr_plan_name not in exist_plan:
+                # Update status of prev_plan
+                prev_plan_name = exist_plan[-1]
+                value = {f'subject.{subject}.{level}.{prev_plan_name}.status:{PENDING}'}
+                self.user_db.update_one({'user_id': user_id }, {'$set':value})
+
+            # Update DONE plane
+            else:
+                value = {f'subject.{subject}.{level}.{prev_plan_name}.status:{DONE}'}
+                self.user_db.update_one({'user_id': user_id }, {'$set':value})
+
+
+            # Log info new path with interuption
+        except: # new user
+            pass
+    
+    def update_total_masteries(self, user_id:str, subject:str, level:str, plan_name:str, BE_masteies:dict):
+        
+        if len(BE_masteies) == 1: # Update a value
+            # total_masteries:dict = doc['subject'][subject][level][plan_name]['total_masteries']
+            lesson_id = list(BE_masteies.keys())[0]
+            lesson_value = list(BE_masteies.values())[0]
+            # total_masteries[lesson_id] = lesson_value
+            value = {f'subject.{subject}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
+
+        else: # Update total values
+            value = {f'subject.{subject}.{level}.{plan_name}.total_masteries':BE_masteies}
+
+        self.user_db.update_one({'user_id': user_id }, {'$set':value})
+        
+        # Get topic_masteries in database
+        doc = self.user_db.find({'user_id': user_id })[0]
+        total_masteries:dict = doc['subject'][subject][level][plan_name]['total_masteries']
+        
+        return total_masteries
+
 
     def is_userExist(self, user:User):
         num_doc = self.user_db.count_documents({"user_id":user.id})

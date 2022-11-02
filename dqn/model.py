@@ -13,7 +13,7 @@ from collections import deque
 from dqn.variables import *
 from dqn.utils import *
 from dqn.environment import SimStudent
-from dqn.database import MongoDb, Format_reader, User
+from dqn.database import MongoDb, Format_reader, User, Data_formater
 from api.route import Item
 
 class Agent(keras.Model):
@@ -62,8 +62,6 @@ class Learner():
         discount_factor = 0.618
         # temp_memory = 0
 
-
-        
         while True:
 
             # if len(self.replay_memory) < MIN_REPLAY_SIZE and len(self.replay_memory) - temp_memory >=  batch_size:
@@ -184,73 +182,98 @@ class Recommend_core():
 
         flow_topic = None
         init_score = None
-        topic_status = INPROCESS
+        prev_score = None
+        plan_done = False
 
 
-
-
-        if data_readed.prev_action is None :  # new user or done toptic
-            flow_topic = self.database.prepare_flow_topic(inputs.masteries_of_test)
+        # New plan
+        if data_readed.prev_action is None :  
+            flow_topic = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
             curr_topic_name = flow_topic[0]
             prev_action = None
-            
+            init_score = inputs.score
+            total_masteries = inputs.masteries
+            # Update status of prev_plan if the plan was interupted
+            self.database.update_interuptedPlan(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name)
         
+        # Exist plan
         else: 
             prev_action = data_readed.prev_action
+            prev_score = inputs.score
+
+            # Update total_masteries from single lesson
+            self.lock.acquire()
+            total_masteries = self.database.update_total_masteries(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name, inputs.masteries)
+            self.lock.release()
             # Get prev_observation 
-            masteries_of_topic:dict = self.database.get_topic_masteries(data_readed.topic_name, inputs.masteries_of_test) # process from masteries_of_test
+            masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
+                                                                    topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
             curr_observation:list = list(masteries_of_topic.values())
 
             # Calculate reward for prev_observation and store experience  
+            curr_topic_name = data_readed.topic_name
             curr_topic_id = 1 # Process from curr_topic_name
-            reward, done = self.env.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score[0])
+            reward, done = self.env.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score)
 
             # Update episode
             if done:
                 self.lock.acquire()
                 self.episode += 1
-                self.lock.release
+                self.lock.release()
 
             self.lock.acquire()
             self.replay_memory.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
             self.lock.release()
 
-            # Check topic is DONE
+            # Topic is DONE
             if 0 not in curr_observation:
-                topic_status = DONE
+                # Render next topic
                 next_topic = data_readed.total_topic.index(data_readed.topic_name) + 1 
+
+                # DONE PLAN
                 if next_topic >= len(data_readed.total_topic):
-                    # Update info to database
-                    info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
-                                level = inputs.program_level, plan_name = inputs.plan_name, prev_score =  inputs.score,     # depend on inputs
-                                topic_masteries = masteries_of_topic, action_index = None, action_id = None,
-                                topic_name = curr_topic_name, init_score = init_score, flow_topic = flow_topic, 
-                                path_status = DONE, topic_status = DONE)
+                    plan_done = True
+
                     self.lock.acquire()
-                    self.database.write_to_DB(info)
+                    self.database.update_interuptedPlan(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name)
                     self.lock.release()
-                    return None
+
                 else:
                     # Get next topic
-                    curr_topic_name = next_topic
-                    
-        # Get lasted masteries, topic
-        masteries_of_topic:dict = self.database.get_topic_masteries(curr_topic_name, inputs.masteries_of_test) # process from masteries_of_test
+                    curr_topic_name = data_readed.total_topic[next_topic]
+
+                # Update prev_score, path_status
+                info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
+                            level = inputs.program_level, plan_name = inputs.plan_name, prev_score = inputs.score,     # depend on inputs
+                            total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
+                            action_index = None, action_id = None, topic_name = data_readed.topic_name, init_score = None, 
+                            flow_topic = None)
+                
+                self.lock.acquire()
+                self.database.update_prev_score(Data_formater(info))
+                self.lock.release()
+
+        if plan_done:
+            return "DONE"
+
+        # Get lasted masteries, topic (update topic_masteries from total_masteries)
+        masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
+                                                                    topic_name=curr_topic_name, total_masteries=total_masteries) # process from masteries_of_test
         curr_observation:list = list(masteries_of_topic.values())
         curr_topic_id:int = None # process from curr_topic_name
         curr_zero_list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
 
         # Take action
-        action_index = self.predict_action(observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
+        action_index = 1#self.predict_action(observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
         action_id = 99 # process from action index
 
        
         # Update info to database
-        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,
-                    level = inputs.program_level, plan_name = inputs.plan_name, prev_score =  inputs.score, 
-                    topic_masteries = masteries_of_topic, action_index = action_index, action_id = action_id,
-                    topic_name = curr_topic_name, init_score = init_score, flow_topic = flow_topic, 
-                    path_status = INPROCESS, topic_status = topic_status)
+        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,        # depend on inputs
+                    level = inputs.program_level, plan_name = inputs.plan_name, prev_score = prev_score,     # depend on inputs
+                    total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
+                    action_index = action_index, action_id = action_id, topic_name = curr_topic_name, init_score = init_score, 
+                    flow_topic = flow_topic)
         
         self.lock.acquire()
         self.database.write_to_DB(info)

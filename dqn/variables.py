@@ -45,3 +45,4 @@ COLLECTION_DATA = "data_lesson_new"
 # Fixed name
 DONE = 'done'
 INPROCESS = 'inprocess'
+PENDING = 'pending'

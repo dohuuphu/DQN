@@ -52,85 +52,85 @@ def load_npy(path):
   print("  [*] load %s" % path)
   return obj
 
-@safety_thread
-def read_from_DB(student_id:str, subject:str, level:int):
-    # Doing something
-    action, topic_id, zero_list, observation = None
+# @safety_thread
+# def read_from_DB(student_id:str, subject:str, level:int):
+#     # Doing something
+#     action, topic_id, zero_list, observation = None
         
-    return action, topic_id, zero_list, observation
+#     return action, topic_id, zero_list, observation
     
-@safety_thread
-def write_to_DB( student_id:str, subject:str, level:int, masteries_of_topic:dict, action_index:int, action_id:int, prev_score:list, topic_name:str):
+# @safety_thread
+# def write_to_DB( student_id:str, subject:str, level:int, masteries_of_topic:dict, action_index:int, action_id:int, prev_score:list, topic_name:str):
 
     
     
-    '''	
-        - student_id
-        - student_gmail(optinal)
-        - subject:
-            + English
-                + 10:
-                    + path_1 (mocktest_1):
-                        + status: pending/inprocess/done
-                        + total_topic:
-                            + topic_1: 1
-                            + topic_3: 2
-                            + topic 2: 3
-                            + ...
-                        + base_score:
-                        + topic_1 (topic_name): 
-                            + step:
-                                + 0: 
-                                    + action_recommend: (depend on idex in masteries)
-                                    + action_ID: (lesson_id)
-                                    + score:
-                                    + masteries{lesson_id:value, ...} # (step_inference) (masteries of topic)
-                                + 1: 
-                                    + action_recommend: (depend on idex in masteries)
-                                    + action_ID: (lesson_id)
-                                    + score:
-                                    + masteries{lesson_id:value, ...} # (step_inference) (masteries of topic)
-                            + id: 1 # Need a function to create and map all topic_name->id
-                            + flow: 1   # Indicate subject selection
-                            + status: pending/inprocess/done
+#     '''	
+#         - student_id
+#         - student_gmail(optinal)
+#         - subject:
+#             + English
+#                 + 10:
+#                     + path_1 (mocktest_1):
+#                         + status: pending/inprocess/done
+#                         + total_topic:
+#                             + topic_1: 1
+#                             + topic_3: 2
+#                             + topic 2: 3
+#                             + ...
+#                         + base_score:
+#                         + topic_1 (topic_name): 
+#                             + step:
+#                                 + 0: 
+#                                     + action_recommend: (depend on idex in masteries)
+#                                     + action_ID: (lesson_id)
+#                                     + score:
+#                                     + masteries{lesson_id:value, ...} # (step_inference) (masteries of topic)
+#                                 + 1: 
+#                                     + action_recommend: (depend on idex in masteries)
+#                                     + action_ID: (lesson_id)
+#                                     + score:
+#                                     + masteries{lesson_id:value, ...} # (step_inference) (masteries of topic)
+#                             + id: 1 # Need a function to create and map all topic_name->id
+#                             + flow: 1   # Indicate subject selection
+#                             + status: pending/inprocess/done
 
-                        + topic_2:
-                            + masteries:
-                                + 0: {lesson_id:value, ...}
-                                + 1:  {lesson_id:value, ...}
-                            + id: 2
-                            + flow: None 
-                            + status: pending/inprocess/done
-                        ...
-                        + topic_n: ... # number of topic is depend on num_quest that related to the topic
+#                         + topic_2:
+#                             + masteries:
+#                                 + 0: {lesson_id:value, ...}
+#                                 + 1:  {lesson_id:value, ...}
+#                             + id: 2
+#                             + flow: None 
+#                             + status: pending/inprocess/done
+#                         ...
+#                         + topic_n: ... # number of topic is depend on num_quest that related to the topic
 
-                    + path_2:
-                        ...
-                + 11: ..
+#                     + path_2:
+#                         ...
+#                 + 11: ..
             
-            + Math:
-                ...
+#             + Math:
+#                 ...
 
 
-    - content:
-        - Englist:
-            - 11:
-                - Vocabulary (category):
-                    - topic_1 (topic name): [id_1, id_2, ...]
-                    - topic_2 (topic name): [id_1, id_2, ...]
-                - Grammar:
-                    - topic_1 (topic name): [id_1, id_2, ...]
+#     - content:
+#         - Englist:
+#             - 11:
+#                 - Vocabulary (category):
+#                     - topic_1 (topic name): [id_1, id_2, ...]
+#                     - topic_2 (topic name): [id_1, id_2, ...]
+#                 - Grammar:
+#                     - topic_1 (topic name): [id_1, id_2, ...]
             
-            - 12:
-                - Vocabulary (category):
-                    - topic_1 (topic name): [id_1, id_2, ...]
-                    - topic_2 (topic name): [id_1, id_2, ...]
-                - Grammar:
-                    - topic_1 (topic name): [id_1, id_2, ...]
-        - Math:
+#             - 12:
+#                 - Vocabulary (category):
+#                     - topic_1 (topic name): [id_1, id_2, ...]
+#                     - topic_2 (topic name): [id_1, id_2, ...]
+#                 - Grammar:
+#                     - topic_1 (topic name): [id_1, id_2, ...]
+#         - Math:
 
-    '''
-    # return True/False
-    pass
+#     '''
+#     # return True/False
+#     pass
 
     
