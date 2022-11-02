@@ -135,21 +135,39 @@ class Learner():
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
+        self.lock = Lock()
+        self.env = SimStudent()   
         self.database = MongoDb()
 
-        self.episode = 0
-        self.lock = Lock()
-        self.event_copy_weight = threading.Event()
-        self.env = SimStudent()      
-        self.replay_memory = deque(maxlen=1_500)
-        self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-        self.learner = Learner(self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode)
+        threads = [] 
 
-        thread = threading.Thread(target=self.learner.train)
-        thread.start()
+        self.episode_English = 0
+        self.event_copy_weight_English = threading.Event()  
+        self.replay_memory_English = deque(maxlen=1_500)
+        self.model_English = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+        self.learner_English = Learner(self.model_English, self.event_copy_weight_English, learning_rate, self.replay_memory_English, self.episode_English)
+
+        self.episode_Algebra = 0
+        self.event_copy_weight_Algebra = threading.Event()  
+        self.replay_memory_Algebra = deque(maxlen=1_500)
+        self.model_Algebra = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+        self.learner_Algebra = Learner(self.model_Algebra, self.event_copy_weight_Algebra, learning_rate, self.replay_memory_Algebra, self.episode_Algebra)
+
+        self.episode_Geometry = 0
+        self.event_copy_weight_Geometry = threading.Event()  
+        self.replay_memory_Geometry = deque(maxlen=1_500)
+        self.model_Geometry = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+        self.learner_Geometry = Learner(self.model_Geometry, self.event_copy_weight_Geometry, learning_rate, self.replay_memory_Geometry, self.episode_Geometry)
+
+        threads.append(threading.Thread(target=self.learner_English.train))
+        threads.append(threading.Thread(target=self.learner_Algebra.train))
+        threads.append(threading.Thread(target=self.learner_Geometry.train))
+        
+        for thread in threads:
+            thread.start()
     
 
-    def predict_action(self, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
+    def predict_action(self, subject:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
@@ -163,9 +181,16 @@ class Recommend_core():
             action = random.randint(0, len(observation) - 1)
         else:
             # Exploit best known action
-            self.event_copy_weight.wait()
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            action = self.model((encoded_reshaped, np.array([topic_number])))
+            if subject == ENGLISH:
+                self.event_copy_weight_English.wait() # wait if learner is setting weight
+                action = self.model_English((encoded_reshaped, np.array([topic_number])))
+            elif subject == ALGEBRA:
+                self.event_copy_weight_Algebra.wait()
+                action = self.model_Algebra((encoded_reshaped, np.array([topic_number])))
+            elif subject == GEOMETRY:
+                self.event_copy_weight_Geometry.wait()
+                action = self.model_Geometry((encoded_reshaped, np.array([topic_number])))
 
             # Random action after explore 
             if prev_action == action:
@@ -185,7 +210,6 @@ class Recommend_core():
         prev_score = None
         plan_done = False
 
-
         # New plan
         if data_readed.prev_action is None :  
             flow_topic = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
@@ -193,8 +217,7 @@ class Recommend_core():
             prev_action = None
             init_score = inputs.score
             total_masteries = inputs.masteries
-
-        
+  
         # Exist plan
         else: 
             prev_action = data_readed.prev_action
@@ -220,8 +243,19 @@ class Recommend_core():
                 self.episode += 1
                 self.lock.release()
 
+            # Update replay_buffer
             self.lock.acquire()
-            self.replay_memory.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
+
+            if inputs.subject == ENGLISH:
+                self.episode_English += 1 if done else 0 
+                self.replay_memory_English.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
+            elif inputs.subject == ALGEBRA:
+                self.episode_Algebra += 1 if done else 0 
+                self.replay_memory_Algebra.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
+            elif inputs.subject == GEOMETRY:
+                self.episode_Geometry += 1 if done else 0 
+                self.replay_memory_Geometry.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
+
             self.lock.release()
 
             # Topic is DONE
@@ -229,7 +263,7 @@ class Recommend_core():
                 # Render next topic
                 next_topic = data_readed.total_topic.index(data_readed.topic_name) + 1 
 
-                # DONE PLAN
+                # Plan is DONE
                 if next_topic >= len(data_readed.total_topic):
                     plan_done = True
 
@@ -263,7 +297,7 @@ class Recommend_core():
         curr_zero_list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
 
         # Take action
-        action_index = 1#self.predict_action(observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
+        action_index = 1#self.predict_action(subject=inputs.subject, observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
         action_id = 99 # process from action index
 
        

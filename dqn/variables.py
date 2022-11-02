@@ -46,3 +46,6 @@ COLLECTION_DATA = "data_lesson_new"
 DONE = 'done'
 INPROCESS = 'inprocess'
 PENDING = 'pending'
+ENGLISH = "English"
+ALGEBRA = "Algebra"
+GEOMETRY = "Geometry"
