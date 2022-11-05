@@ -127,33 +127,41 @@ class Learner():
                     self.event_copy_weight.clear()
                     self.agent.set_weights(weight)
                     self.event_copy_weight.set()
+                
+                if self.episode %100 == 0:
+                    print("save model =======")
+                    self.model.save(f'weight/{MODEL_SAVE}')
 
                 
                 K.clear_session()
 
-
+class Subject_core():
+    def __init__(self) -> None:
+        pass 
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
         self.lock = Lock()
-        self.env = SimStudent()   
+        # self.env = SimStudent()   
         self.database = MongoDb()
 
         threads = [] 
-
         self.episode_English = 0
+        self.env_English = SimStudent() 
         self.event_copy_weight_English = threading.Event()  
         self.replay_memory_English = deque(maxlen=1_500)
         self.model_English = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
         self.learner_English = Learner(self.model_English, self.event_copy_weight_English, learning_rate, self.replay_memory_English, self.episode_English)
 
         self.episode_Algebra = 0
+        self.env_Algebra = SimStudent() 
         self.event_copy_weight_Algebra = threading.Event()  
         self.replay_memory_Algebra = deque(maxlen=1_500)
         self.model_Algebra = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
         self.learner_Algebra = Learner(self.model_Algebra, self.event_copy_weight_Algebra, learning_rate, self.replay_memory_Algebra, self.episode_Algebra)
 
         self.episode_Geometry = 0
+        self.env_Geometry = SimStudent() 
         self.event_copy_weight_Geometry = threading.Event()  
         self.replay_memory_Geometry = deque(maxlen=1_500)
         self.model_Geometry = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
@@ -227,32 +235,29 @@ class Recommend_core():
             self.lock.acquire()
             total_masteries = self.database.update_total_masteries(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name, inputs.masteries)
             self.lock.release()
-            # Get prev_observation 
+
+            # Get curr_observation 
             masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
-            curr_observation:list = list(masteries_of_topic.values())
+            curr_observation:list = list(masteries_of_topic.values()) # if done topic => curr_observation is full 1
 
-            # Calculate reward for prev_observation and store experience  
-            curr_topic_name = data_readed.topic_name
-            curr_topic_id = 1 # Process from curr_topic_name
-            reward, done = self.env.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score)
-
-            # Update episode
-            if done:
-                self.lock.acquire()
-                self.episode += 1
-                self.lock.release()
+            # Calculate reward for prev_observation
+            prev_topic_name = data_readed.topic_name
+            prev_topic_id = self.database.get_topic_id(inputs.subject, inputs.program_level, prev_topic_name) # Process from curr_topic_name
 
             # Update replay_buffer
             self.lock.acquire()
 
             if inputs.subject == ENGLISH:
+                reward, done = self.env_English.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score)
                 self.episode_English += 1 if done else 0 
-                self.replay_memory_English.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
+                self.replay_memory_English.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
             elif inputs.subject == ALGEBRA:
+                reward, done = self.env_Algebra.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score)
                 self.episode_Algebra += 1 if done else 0 
                 self.replay_memory_Algebra.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
             elif inputs.subject == GEOMETRY:
+                reward, done = self.env_Geometry.step_api(data_readed.prev_action, data_readed.zero_list, inputs.score)
                 self.episode_Geometry += 1 if done else 0 
                 self.replay_memory_Geometry.append([data_readed.observation, curr_topic_id, data_readed.prev_action, reward, curr_observation, done])
 
@@ -297,7 +302,7 @@ class Recommend_core():
         curr_zero_list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
 
         # Take action
-        action_index = 1#self.predict_action(subject=inputs.subject, observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
+        action_index = self.predict_action(subject=inputs.subject, observation=curr_observation, topic_id=curr_topic_id, episode=self.episode, zero_list=curr_zero_list, prev_action=prev_action)
         action_id = 99 # process from action index
 
        

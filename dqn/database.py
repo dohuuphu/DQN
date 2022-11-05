@@ -94,8 +94,10 @@ class MongoDb:
     def __init__(self):
         self.client =  pymongo.MongoClient(COLLECTION_PATH)
         self.mydb = self.client[MONGODB_NAME]
-        self.user_db = self.mydb[COLLECTION_NAME]
-        self.content_db = self.mydb[COLLECTION_DATA]
+        self.user_db = self.mydb[COLLECTION_USER]
+        self.content_db = self.mydb[COLLECTION_LESSON]
+        self.content_id = self.mydb[COLLECTION_LESSON_ID].find_one()
+
         self.content_doc = self.content_db.find_one() # review
 
         self.locker = Lock()
@@ -110,14 +112,7 @@ class MongoDb:
     #     for level in ['10','11', '12']
     #     topic_id_10 = self.get_topic_id('10')
 
-    def get_topic_id(self, subject:str):
-        dict_id = {}
-        id = 0
-        for level in self.content_doc[subject]:
-            for category in self.content_doc[subject][level]:
-                for topic_name in self.content_doc[level][category]:
-                    dict_id.update({topic_name:id})
-        return dict_id
+    
 
     def preprocess_userInfo(self, user_info:User):
 
@@ -209,6 +204,10 @@ class MongoDb:
 
         return  topic_masteries
 
+    def get_topic_id(self,  subject:str, level:str, topic_name:str):
+        key = f'{subject}_{level}_{topic_name}'
+        return self.content_id[key]
+    
     def prepare_flow_topic(self, subject:str, level:str, total_masteries:dict=None)->list:
         '''
             Repare topic_flow and return curr_topic value
@@ -341,24 +340,22 @@ class MongoDb:
             # Log info new path with interuption
         except: # new user
             pass 
-        
-       
-    
+            
     def update_total_masteries(self, user_id:str, subject:str, level:str, plan_name:str, BE_masteies:dict):
-        
-        if len(BE_masteies) == 1: # Update a value
-            # total_masteries:dict = doc['subject'][subject][level][plan_name]['total_masteries']
+        # Backend masteries exist 1 LDP = > inprocess => Update a value in total_masteries
+        if len(BE_masteies) == 1: 
             lesson_id = list(BE_masteies.keys())[0]
             lesson_value = list(BE_masteies.values())[0]
-            # total_masteries[lesson_id] = lesson_value
+
             value = {f'subject.{subject}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
 
+        # Backend masteries > 1 LDP = > new plan (mock test) => create total masteries
         else: # Update total values
             value = {f'subject.{subject}.{level}.{plan_name}.total_masteries':BE_masteies}
-
+            print("====== WARNING: needd to review, in a exist plan, why  BE_masteries > 1 LDP")
         self.user_db.update_one({'user_id': user_id }, {'$set':value})
         
-        # Get topic_masteries in database
+        # Get all LDP (total_masteries) exist in course
         doc = self.user_db.find({'user_id': user_id })[0]
         total_masteries:dict = doc['subject'][subject][level][plan_name]['total_masteries']
         

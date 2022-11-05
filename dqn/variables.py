@@ -10,7 +10,7 @@ RELATION = True
 
 
 # Topic table
-NUM_TOPIC = 2
+NUM_TOPIC = 30000
 
 
 # Train
@@ -37,8 +37,9 @@ CHECKDONE_PATH = 'logs/check_done.log'
 #Config database
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI_Kyons_new"
-COLLECTION_NAME = "data_beta"
-COLLECTION_DATA = "data_lesson_new"
+COLLECTION_USER = "data_beta"
+COLLECTION_LESSON = "content_data"
+COLLECTION_LESSON_ID = "hasing_data"
 
 
 
