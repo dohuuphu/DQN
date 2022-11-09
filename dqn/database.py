@@ -8,7 +8,7 @@ from threading import Lock
 
 
 class Format_reader():
-    def __init__(self, total_topic:list, topic_name:str, prev_action:int, zero_list:list, observation:list) -> None:
+    def __init__(self, total_topic:dict, topic_name:str, prev_action:int, zero_list:list, observation:list) -> None:
         self.total_topic = total_topic
         self.topic_name = topic_name
         self.prev_action = prev_action
@@ -62,11 +62,20 @@ class Data_formater():
         key = f'{prefix}.{self.user.plan_name}' if prefix else self.user.plan_name
         return {key:{
                         "status": self.user.path_status,
-                        "total_topic": self.user.flow_topic,
+                        "total_topic": self.total_topic_info(),
                         "total_masteries": self.user.total_masteries,
                         "init_score": self.user.init_score,
                         "flow": self.topic_info()
                     }}
+    
+    def total_topic_info(self):
+        total_topic = {}
+        for topic in self.user.flow_topic:
+            masteries = None
+            total_topic.update({topic:masteries})
+        
+        return total_topic
+
                 
     def topic_info(self, prefix:str=None):
         key = f'{prefix}.{self.user.topic_name}' if prefix else self.user.topic_name
@@ -101,18 +110,6 @@ class MongoDb:
         self.content_doc = self.content_db.find_one() # review
 
         self.locker = Lock()
-
-
-    # def create_dict_topicID(self):
-    #     class Topic_id():
-    #         lv_10 = None
-    #         lv_11 = None
-    #         lv_12 = None
-
-    #     for level in ['10','11', '12']
-    #     topic_id_10 = self.get_topic_id('10')
-
-    
 
     def preprocess_userInfo(self, user_info:User):
 
@@ -189,7 +186,7 @@ class MongoDb:
 
         return False
 
-    def get_topic_masteries(self,  subject:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
+    def get_topic_masteries(self, subject:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
         content = self.content_doc[subject][level].copy()
         topic_masteries = None
         for category in content:
@@ -262,12 +259,13 @@ class MongoDb:
     def read_from_DB(self, user_id:str, subject:str, level:str, plan_name:str):      
         try:
             doc = self.user_db.find({'user_id': user_id })[0]
-            total_topic = doc['subject'][subject][level][plan_name]['total_topic']
+            total_topic:dict = doc['subject'][subject][level][plan_name]['total_topic']
             dict_flow = doc['subject'][subject][level][plan_name]['flow']
             prev_topic_name:str = list(dict_flow.keys())[-1]
             prev_step:dict = dict_flow[prev_topic_name][-1]
             prev_action:int = prev_step['action_recommend']
             prev_masteries:dict = prev_step['masteries']
+
 
             observation = list(prev_masteries.values())
             zero_list = [i for i in range(len(observation)) if observation[i] == 0.0] 
@@ -289,6 +287,9 @@ class MongoDb:
 
         if self.is_newUser(data.user.id): 
             self.user_db.insert_one(data.user_info())
+
+            # Update total_topic_value
+            self.update_total_topic(data=data)
 
         elif self.is_newSubject(data.user):
             prefix = 'subject'
@@ -361,6 +362,21 @@ class MongoDb:
         
         return total_masteries
 
+    def update_total_topic(self, data:Data_formater):
+        # using 1 time when init new user
+        # Get total topic name
+        myquery = {"user_id":data.user.id}
+        doc = self.user_db.find(myquery)[0]
+        total_topic:dict = doc['subject'][data.user.subject][data.user.level][data.user.plan_name]['total_topic']
+
+        for topic_name in total_topic:
+            topic_masteries:dict = self.get_topic_masteries(subject=data.user.subject, level=data.user.level, topic_name=topic_name, total_masteries=data.user.total_masteries)
+
+            # Update total_topic value, topic_masteries is init masteries
+            value = {f'subject.{data.user.subject}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
+
+
+            self.user_db.update_one(myquery, {'$set':value})
 
     def is_userExist(self, user:User):
         num_doc = self.user_db.count_documents({"user_id":user.id})
@@ -370,6 +386,20 @@ class MongoDb:
             if num_doc > 1:
                 logging.getLogger(SYSTEM_LOG).error(f"Confict {num_doc} doc, user {user.id} ")
         return False
+
+    def get_plan_status(self, user_id:str, subject:str, level:str, plan_name:str):
+        message = ''
+        try:
+            myquery = {"user_id":user_id}
+            doc = self.user_db.find(myquery)[0]
+            plan_status:str = doc['subject'][subject][level][plan_name]['status']
+            status = True if plan_status == DONE else False
+            
+            return status, message
+        except:
+            message =  'Learning path is not exist'
+            return False, message
+            
 
 
 

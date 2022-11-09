@@ -39,7 +39,7 @@ COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI_Kyons_new"
 COLLECTION_USER = "data_beta"
 COLLECTION_LESSON = "content_data"
-COLLECTION_LESSON_ID = "hasing_data"
+COLLECTION_LESSON_ID = "hashing_data"
 
 
 

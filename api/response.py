@@ -5,11 +5,11 @@ from fastapi import status
 
 
 class APIResponse():
-        def json_format(response=None):
+        def json_format(response=None, msg=''):
                 if response != None: 
                         success = True
                         status_code = status.HTTP_200_OK
-                        content = 'success'
+                        content = 'success' if msg == '' else msg 
 
                         return  Response(content=json.dumps(
                                                 {

@@ -31,4 +31,4 @@ if __name__ == '__main__':
     recommender = Recommend_core()
     route_setup(app, recommender)
 
-    uvicorn.run(app, host='0.0.0.0', port=35616)
+    uvicorn.run(app, host='0.0.0.0', port=30616)
