@@ -48,5 +48,6 @@ DONE = 'done'
 INPROCESS = 'inprocess'
 PENDING = 'pending'
 ENGLISH = "English"
+MATH = "Math"
 ALGEBRA = "Algebra"
 GEOMETRY = "Geometry"

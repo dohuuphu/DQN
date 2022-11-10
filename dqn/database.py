@@ -401,7 +401,7 @@ class MongoDb:
             message =  'Learning path is not exist'
             return False, message
 
-    def get_lessonID_in_topic(self, action_index:int, subject:str, level:str,topic_name:str)->list:
+    def get_lessonID_in_topic(self, action_index:int, subject:str, level:str, topic_name:str)->list:
 
         myquery = {"subject":"English"}
         doc = self.user_db.find(myquery)[0]
@@ -409,7 +409,17 @@ class MongoDb:
 
         
         return action_index
-
+    
+    def get_LDP_in_category(self, subject:str, level:str)->dict:
+        category_LDP = {}
+        content = self.content_doc[subject][level].copy()
+        for category in content:
+            list_LDP = []
+            for topic_name in content[category]:
+                list_LDP += list(content[category][topic_name].values())    # Update LDP in a topic to list total LDP
+            category_LDP.update({category:list_LDP})
+        
+        return category_LDP
             
 
 

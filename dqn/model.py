@@ -6,15 +6,17 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 
-from threading import Lock, Event
 from tensorflow import keras
 from collections import deque
+from threading import Lock, Event
+from concurrent.futures import ThreadPoolExecutor
 
-from dqn.variables import *
+from api.route import Item
 from dqn.utils import *
+from dqn.variables import *
 from dqn.environment import SimStudent
 from dqn.database import MongoDb, Format_reader, User, Data_formater
-from api.route import Item
+
 
 class Agent(keras.Model):
     def __init__(self, action_shape, number_topic):
@@ -199,8 +201,51 @@ class Recommend_core():
             
         return action 
 
+    def arrange_usage_category(self, item:Item)->list:
+        '''
+            Create new items corresponding to sub_subject in raw_masteries 
+        '''
+        result_items = []
+
+        if item.subject == MATH:
+            sub_subjects = {}
+            # Get total LPDs in the categorys
+            LPD_in_categorys:dict = self.database.get_LDP_in_category(item.subject, item.program_level)
+            for category in LPD_in_categorys:
+                total_LPD:list = list(LPD_in_categorys[category].values())
+                used_LPDs = {}
+                for lpd in item.masteries:
+                    if lpd in total_LPD:
+                        used_LPDs.update({lpd:item.masteries[lpd]})
+
+                # Add LPD of category that exist in mock test   
+                sub_subjects.update({category:used_LPDs})
+
+            # Create new item and add to result
+            for sub_subject_name in sub_subjects:
+                parsed_item = item.copy()
+                parsed_item.subject = sub_subject_name
+                parsed_item.masteries = sub_subjects[sub_subject_name]
+                result_items.append(parsed_item)
+            
+        else:   # English 
+            result_items.append(item.copy())  
+            
+        return result_items
+
     @timer
-    def get_learning_point(self, inputs:Item): 
+    def get_learning_point(self, input:Item): 
+        # Arrange LPD to correct_category, Math only
+        parsed_inputs:list = self.arrange_usage_category(item=input)
+
+        # Run with multi-threading
+        results = {}
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for result in executor.map(self.process_learningPath, parsed_inputs):
+                results.update(result)
+
+            
+    def process_learningPath(self, inputs:Item): 
         # Processing input and store database
         data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.subject, str(inputs.program_level), inputs.plan_name)
 
@@ -315,7 +360,7 @@ class Recommend_core():
 
         gc.collect()
 
-        return action_id
+        return {inputs.subject:action_id}
 
     @timer
     def is_done_program(self, user_id:str, subject:str, level:str, plan_name:str):
