@@ -166,7 +166,6 @@ class Recommend_core():
         for thread in threads:
             thread.start()
     
-
     def predict_action(self, subject:str, observation:np.ndarray, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
@@ -232,8 +231,7 @@ class Recommend_core():
             # Get curr_observation 
             masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
-            curr_observation:np.ndarray = np.array(list(masteries_of_topic.values())) # if done topic => curr_observation is full 1
-
+            curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) # if done topic => curr_observation is full 1
             # Calculate reward for prev_observation
             curr_topic_name = data_readed.topic_name    #
             prev_topic_id = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # Process from curr_topic_name
@@ -296,14 +294,13 @@ class Recommend_core():
         # Get lasted masteries, topic (update topic_masteries from total_masteries)
         masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
                                                                     topic_name=curr_topic_name, total_masteries=total_masteries) # process from masteries_of_test
-        curr_observation:list = list(masteries_of_topic.values())
+        curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name)
+        curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
-        curr_zero_list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
 
         # Take action
         action_index = self.predict_action(subject=inputs.subject, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
-        action_id = action_index # process from action index
-
+        action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
         info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,        # depend on inputs
@@ -326,4 +323,9 @@ class Recommend_core():
             Check status in database
         '''
         return self.database.get_plan_status(user_id, subject, level, plan_name)
+
+    
+    
+    
+
     

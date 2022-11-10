@@ -2,8 +2,9 @@
 import time
 import functools
 import numpy as np
+import logging
 
-from threading import Lock
+from dqn.variables import STATE_ACTION_SPACE, SYSTEM_LOG
 
 # def safety_thread(func):
 #     @functools.wraps(func)
@@ -51,6 +52,20 @@ def load_npy(path):
   obj = np.load(path)
   print("  [*] load %s" % path)
   return obj
+
+
+def rawObservation_to_standarObservation(raw_observation:list, topic:str)->np.ndarray:
+        standar_observation = [1.0]*STATE_ACTION_SPACE
+
+        if len(raw_observation) > len(standar_observation):
+            info = f'topic {topic} have length more than standar_observation'
+            logging.getLogger(SYSTEM_LOG).error(info)
+
+        # Update value from raw to standar
+        for id, val in enumerate(raw_observation):
+            standar_observation[id] = val
+
+        return np.array(standar_observation)
 
 # @safety_thread
 # def read_from_DB(student_id:str, subject:str, level:int):

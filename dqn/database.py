@@ -211,6 +211,7 @@ class MongoDb:
         '''
         dict_exist_topic = {}
         for lesson_id in total_masteries:
+            # Get topic info from lesson_id
             topic_name, dict_values = self.get_topic_info(subject, level, lesson_id)
 
             # Check lesson_id is exist in database and update lesson value
@@ -399,6 +400,16 @@ class MongoDb:
         except:
             message =  'Learning path is not exist'
             return False, message
+
+    def get_lessonID_in_topic(self, action_index:int, subject:str, level:str,topic_name:str)->list:
+
+        myquery = {"subject":"English"}
+        doc = self.user_db.find(myquery)[0]
+        # topic:str = doc['subject'][subject][level][plan_name]['status']
+
+        
+        return action_index
+
             
 
 
