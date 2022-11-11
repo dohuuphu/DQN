@@ -286,26 +286,12 @@ class Recommend_core():
             init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
             raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
 
-            self.lock.acquire()
-                                                    
-            if inputs.subject == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
-                reward, done = self.english.env.step_api(action=data_readed.prev_action, observation_=curr_observation, zero_list=raw_zerolist, score=inputs.score) 
-                self.english.episode += 1 if done else 0 
-                episode = self.english.episode
-                self.english.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
-            elif inputs.subject == ALGEBRA:
-                reward, done = self.math_Algebra.env.step_api(data_readed.prev_action, raw_zerolist, inputs.score)
-                self.math_Algebra.episode += 1 if done else 0 
-                episode = self.math_Algebra.episode
-                self.math_Algebra.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
-            elif inputs.subject == GEOMETRY:
-                reward, done = self.math_Geometry.env.step_api(data_readed.prev_action, raw_zerolist, inputs.score)
-                self.math_Geometry.episode += 1 if done else 0 
-                episode = self.math_Geometry.episode
-                self.math_Geometry.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
+            item_relayBuffer = Item_relayBuffer(observation=data_readed.observation, topic_id=prev_topic_id, 
+                                                action_index=data_readed.prev_action, next_observation=curr_observation,
+                                                score=inputs.score)
 
-            self.lock.release()
-
+            episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.subject, raw_zerolist=raw_zerolist)
+            
             # Topic is DONE
             if 0 not in curr_observation:
                 # Render next topic
@@ -349,10 +335,18 @@ class Recommend_core():
         while True:
             action_index = self.predict_action(subject=inputs.subject, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
 
+            # Select action until get right
             if self.is_suitable_action(curr_zero_list, action_index):
                 break
             else:
-                pass
+                # Update negative action (action_value = 1) to relay buffer 
+                init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
+                raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
+                item_relayBuffer = Item_relayBuffer(observation=curr_observation, topic_id=curr_topic_id, 
+                                                action_index=action_index, next_observation=curr_observation,
+                                                score=5) # need define score ??
+
+                episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.subject, raw_zerolist=raw_zerolist)
 
 
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
@@ -372,26 +366,32 @@ class Recommend_core():
 
         return {inputs.subject:action_id}
 
-    def update_relayBuffer(self, inputs:Item, data_readed:Format_reader, curr_observation:list, raw_zerolist:list, prev_topic_id:int ):
+    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, subject:Item, score:float, raw_zerolist:list):
         self.lock.acquire()
                                                     
-        if inputs.subject == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
-            reward, done = self.english.env.step_api(action=data_readed.prev_action, observation_=curr_observation, zero_list=raw_zerolist, score=inputs.score) 
+        if subject == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
+            reward, done = self.english.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                        zero_list=raw_zerolist, score=item_relayBuffer.score) 
             self.english.episode += 1 if done else 0 
             episode = self.english.episode
-            self.english.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
+            self.english.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
 
-        elif inputs.subject == ALGEBRA:
-            reward, done = self.math_Algebra.env.step_api(data_readed.prev_action, raw_zerolist, inputs.score)
+        elif subject == ALGEBRA:
+            reward, done = self.math_Algebra.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                             zero_list=raw_zerolist, score=item_relayBuffer.score) 
             self.math_Algebra.episode += 1 if done else 0 
             episode = self.math_Algebra.episode
-            self.math_Algebra.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
-            
-        elif inputs.subject == GEOMETRY:
-            reward, done = self.math_Geometry.env.step_api(data_readed.prev_action, raw_zerolist, inputs.score)
+            self.math_Algebra.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
+
+        elif subject == GEOMETRY:
+            reward, done = self.math_Geometry.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            zero_list=raw_zerolist, score=item_relayBuffer.score) 
             self.math_Geometry.episode += 1 if done else 0 
             episode = self.math_Geometry.episode
-            self.math_Geometry.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
+            self.math_Geometry.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
 
         self.lock.release()
 

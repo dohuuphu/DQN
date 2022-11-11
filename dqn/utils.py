@@ -6,14 +6,16 @@ import logging
 
 from dqn.variables import STATE_ACTION_SPACE, SYSTEM_LOG
 
-# def safety_thread(func):
-#     @functools.wraps(func)
-#     def threading_lock(locker:Lock, *args, **kwargs):
-#         locker.acquire()
-#         result = func(*args, **kwargs)
-#         locker.release()
-#         return result
-#     return threading_lock
+class Item_relayBuffer:
+    def __init__(self, observation, topic_id, action_index, next_observation, reward= None, done=False, score=None):
+        self.observation:list = observation
+        self.topic_id:int = topic_id
+        self.action_index:int = action_index
+        self.reward:float = reward      #reward for choice action_index
+        self.next_observation:list = next_observation   # run action_index => next_observation
+        self.done:bool = done
+        self.score:float = score       # Score of action_index
+
 
 def timer(func):
     @functools.wraps(func)

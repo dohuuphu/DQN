@@ -39,13 +39,22 @@ class SimStudent():
       reward-=1
     else:
       reward +=1
+
+    # Need reward if fall into negative action
+    
+    #  ??
     if self.history[action] == 0 and observation[action]==1:
       reward += score-4
 
+    # Check done observation (a topic)
     if not 0.0 in observation:
       done = True
+
+      # All recommened action is correct
       if len(self.history) == len(zero_list):
         reward+=10
+      
+      # Exist wrong recommended action (select 1)
       if len(self.history) > len(zero_list):
         reward -= len(self.history) - len(zero_list)
     

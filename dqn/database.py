@@ -15,10 +15,7 @@ class Format_reader():
         self.zero_list = zero_list
         self.observation = observation
 
-# class Format_writer():
-#     def __init__(self, **kwarg) -> None:
-#         pass
-        
+  
 
 class User():
     def __init__(self, user_id:str, user_mail:str, subject:str, level:int, plan_name:str,  total_masteries:dict, topic_masteries:dict, action_index:int, action_id:int, prev_score:int, topic_name:str, init_score:int = None, flow_topic:list=None) -> None:
