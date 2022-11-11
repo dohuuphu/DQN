@@ -273,12 +273,13 @@ class Recommend_core():
             total_masteries = self.database.update_total_masteries(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name, inputs.masteries)
             self.lock.release()
 
-            # Get curr_observation 
+            # Get current_observation 
             masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
             curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) # if done topic => curr_observation is full 1
+            
             # Calculate reward for prev_observation
-            curr_topic_name = data_readed.topic_name    #
+            curr_topic_name = data_readed.topic_name   
             prev_topic_id = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # Process from curr_topic_name
 
             # Update replay_buffer
@@ -286,8 +287,8 @@ class Recommend_core():
             raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
 
             self.lock.acquire()
-            # action:int, observation_:list, zero_list:list, score:int
-            if inputs.subject == ENGLISH:
+                                                    
+            if inputs.subject == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
                 reward, done = self.english.env.step_api(action=data_readed.prev_action, observation_=curr_observation, zero_list=raw_zerolist, score=inputs.score) 
                 self.english.episode += 1 if done else 0 
                 episode = self.english.episode
@@ -335,6 +336,7 @@ class Recommend_core():
 
         if plan_done:
             return "DONE"
+        
 
         # Get lasted masteries, topic (update topic_masteries from total_masteries)
         masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
@@ -342,9 +344,17 @@ class Recommend_core():
         curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name)
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
+        
+        # Get action
+        while True:
+            action_index = self.predict_action(subject=inputs.subject, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
 
-        # Take action
-        action_index = self.predict_action(subject=inputs.subject, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
+            if self.is_suitable_action(curr_zero_list, action_index):
+                break
+            else:
+                pass
+
+
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
@@ -361,6 +371,35 @@ class Recommend_core():
         gc.collect()
 
         return {inputs.subject:action_id}
+
+    def update_relayBuffer(self, inputs:Item, data_readed:Format_reader, curr_observation:list, raw_zerolist:list, prev_topic_id:int ):
+        self.lock.acquire()
+                                                    
+        if inputs.subject == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
+            reward, done = self.english.env.step_api(action=data_readed.prev_action, observation_=curr_observation, zero_list=raw_zerolist, score=inputs.score) 
+            self.english.episode += 1 if done else 0 
+            episode = self.english.episode
+            self.english.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
+
+        elif inputs.subject == ALGEBRA:
+            reward, done = self.math_Algebra.env.step_api(data_readed.prev_action, raw_zerolist, inputs.score)
+            self.math_Algebra.episode += 1 if done else 0 
+            episode = self.math_Algebra.episode
+            self.math_Algebra.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
+            
+        elif inputs.subject == GEOMETRY:
+            reward, done = self.math_Geometry.env.step_api(data_readed.prev_action, raw_zerolist, inputs.score)
+            self.math_Geometry.episode += 1 if done else 0 
+            episode = self.math_Geometry.episode
+            self.math_Geometry.replay_memory.append([data_readed.observation, prev_topic_id, data_readed.prev_action, reward, curr_observation, done])
+
+        self.lock.release()
+
+        return episode
+
+    def is_suitable_action(self, zero_list:list, action_index:int):
+            return True if zero_list[action_index] == 0 else False
+
 
     @timer
     def is_done_program(self, user_id:str, subject:str, level:str, plan_name:str):
