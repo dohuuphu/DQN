@@ -168,7 +168,7 @@ class Recommend_core():
         for thread in threads:
             thread.start()
     
-    def predict_action(self, subject:str, observation:np.ndarray, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
+    def predict_action(self, category:str, observation:np.ndarray, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
@@ -183,13 +183,13 @@ class Recommend_core():
         else:
             # Exploit best known action
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            if subject == ENGLISH:
+            if category == ENGLISH:
                 self.english.event_copy_weight.wait() # wait if learner is setting weight
                 action = self.english.model((encoded_reshaped, np.array([topic_number])))
-            elif subject == ALGEBRA:
+            elif category == ALGEBRA:
                 self.math_Algebra.event_copy_weight.wait()
                 action = self.math_Algebra.model((encoded_reshaped, np.array([topic_number])))
-            elif subject == GEOMETRY:
+            elif category == GEOMETRY:
                 self.math_Geometry.event_copy_weight.wait()
                 action = self.math_Geometry.model((encoded_reshaped, np.array([topic_number])))
 
@@ -212,23 +212,26 @@ class Recommend_core():
             # Get total LPDs in the categorys
             LPD_in_categorys:dict = self.database.get_LDP_in_category(item.subject, item.program_level)
             for category in LPD_in_categorys:
-                total_LPD:list = list(LPD_in_categorys[category].values())
+                total_LPD:list = LPD_in_categorys[category]
                 used_LPDs = {}
                 for lpd in item.masteries:
                     if lpd in total_LPD:
                         used_LPDs.update({lpd:item.masteries[lpd]})
 
                 # Add LPD of category that exist in mock test   
-                sub_subjects.update({category:used_LPDs})
+                if used_LPDs != {}:
+                    sub_subjects.update({category:used_LPDs})
 
             # Create new item and add to result
             for sub_subject_name in sub_subjects:
                 parsed_item = item.copy()
-                parsed_item.subject = sub_subject_name
+                parsed_item.category = sub_subject_name
                 parsed_item.masteries = sub_subjects[sub_subject_name]
                 result_items.append(parsed_item)
             
         else:   # English 
+            parsed_item = item.copy()
+            parsed_item.category = sub_subject_name
             result_items.append(item.copy())  
             
         return result_items
@@ -244,10 +247,12 @@ class Recommend_core():
             for result in executor.map(self.process_learningPath, parsed_inputs):
                 results.update(result)
 
-            
+    # Interact with user_data => using category as subject
+    # Interact with user_data => using category as category
+
     def process_learningPath(self, inputs:Item): 
         # Processing input and store database
-        data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.subject, str(inputs.program_level), inputs.plan_name)
+        data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.category, str(inputs.program_level), inputs.plan_name)
 
         flow_topic = None
         init_score = None
@@ -270,7 +275,7 @@ class Recommend_core():
 
             # Update total_masteries from single lesson
             self.lock.acquire()
-            total_masteries = self.database.update_total_masteries(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name, inputs.masteries)
+            total_masteries = self.database.update_total_masteries(inputs.user_id, inputs.category, inputs.program_level, inputs.plan_name, inputs.masteries)
             self.lock.release()
 
             # Get current_observation 
@@ -290,7 +295,7 @@ class Recommend_core():
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
                                                 score=inputs.score)
 
-            episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.subject, raw_zerolist=raw_zerolist)
+            episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.category, raw_zerolist=raw_zerolist)
             
             # Topic is DONE
             if 0 not in curr_observation:
@@ -302,7 +307,7 @@ class Recommend_core():
                     plan_done = True
 
                     self.lock.acquire()
-                    self.database.update_interuptedPlan(inputs.user_id, inputs.subject, inputs.program_level, inputs.plan_name)
+                    self.database.update_interuptedPlan(inputs.user_id, inputs.category, inputs.program_level, inputs.plan_name)
                     self.lock.release()
 
                 else:
@@ -310,7 +315,7 @@ class Recommend_core():
                     curr_topic_name = list(data_readed.total_topic.keys())[next_topic]
 
                 # Update prev_score, path_status
-                info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
+                info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.category,           # depend on inputs
                             level = inputs.program_level, plan_name = inputs.plan_name, prev_score = inputs.score,     # depend on inputs
                             total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
                             action_index = None, action_id = None, topic_name = data_readed.topic_name, init_score = None, 
@@ -333,7 +338,7 @@ class Recommend_core():
         
         # Get action
         while True:
-            action_index = self.predict_action(subject=inputs.subject, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
+            action_index = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
 
             # Select action until get right
             if self.is_suitable_action(curr_zero_list, action_index):
@@ -346,13 +351,13 @@ class Recommend_core():
                                                 action_index=action_index, next_observation=curr_observation,
                                                 score=5) # need define score ??
 
-                episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.subject, raw_zerolist=raw_zerolist)
+                episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.category, raw_zerolist=raw_zerolist)
 
 
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
-        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,        # depend on inputs
+        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.category,        # depend on inputs
                     level = inputs.program_level, plan_name = inputs.plan_name, prev_score = prev_score,     # depend on inputs
                     total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
                     action_index = action_index, action_id = action_id, topic_name = curr_topic_name, init_score = init_score, 
@@ -364,12 +369,12 @@ class Recommend_core():
 
         gc.collect()
 
-        return {inputs.subject:action_id}
+        return {inputs.category:action_id}
 
-    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, subject:Item, score:float, raw_zerolist:list):
+    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item, raw_zerolist:list):
         self.lock.acquire()
                                                     
-        if subject == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
+        if category == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
             reward, done = self.english.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                         zero_list=raw_zerolist, score=item_relayBuffer.score) 
             self.english.episode += 1 if done else 0 
@@ -377,7 +382,7 @@ class Recommend_core():
             self.english.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
-        elif subject == ALGEBRA:
+        elif category == ALGEBRA:
             reward, done = self.math_Algebra.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                              zero_list=raw_zerolist, score=item_relayBuffer.score) 
             self.math_Algebra.episode += 1 if done else 0 
@@ -385,7 +390,7 @@ class Recommend_core():
             self.math_Algebra.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
-        elif subject == GEOMETRY:
+        elif category == GEOMETRY:
             reward, done = self.math_Geometry.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             zero_list=raw_zerolist, score=item_relayBuffer.score) 
             self.math_Geometry.episode += 1 if done else 0 

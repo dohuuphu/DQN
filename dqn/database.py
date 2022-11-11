@@ -13,9 +13,7 @@ class Format_reader():
         self.topic_name = topic_name
         self.prev_action = prev_action
         self.zero_list = zero_list
-        self.observation = observation
-
-  
+        self.observation = observation  
 
 class User():
     def __init__(self, user_id:str, user_mail:str, subject:str, level:int, plan_name:str,  total_masteries:dict, topic_masteries:dict, action_index:int, action_id:int, prev_score:int, topic_name:str, init_score:int = None, flow_topic:list=None) -> None:
@@ -104,7 +102,7 @@ class MongoDb:
         self.content_db = self.mydb[COLLECTION_LESSON]
         self.content_id = self.mydb[COLLECTION_LESSON_ID].find_one()
 
-        self.content_doc = self.content_db.find_one() # review
+        # self.content_doc = self.content_db.find_one() # review
 
         self.locker = Lock()
 
@@ -184,7 +182,9 @@ class MongoDb:
         return False
 
     def get_topic_masteries(self, subject:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
-        content = self.content_doc[subject][level].copy()
+        myquery = {"subject":subject}
+        doc = self.content_db.find(myquery)[0]
+        content = doc[subject][level].copy()
         topic_masteries = None
         for category in content:
             if topic_name in content[category]:
@@ -246,7 +246,10 @@ class MongoDb:
                     grammar:
                         topic_1: {lesson_id:1, lesson_id:1,...}         
         '''
-        content = self.content_doc[subject][level].copy()
+        myquery = {"subject":subject}
+        doc = self.content_db.find(myquery)[0]
+        content = doc[subject][level].copy()
+        # content = self.content_doc[subject][level].copy()
         for category in content:
             for topic_name in content[category]:
                 if lesson_id in list(content[category][topic_name].keys()):
@@ -254,11 +257,11 @@ class MongoDb:
 
         return None, None
 
-    def read_from_DB(self, user_id:str, subject:str, level:str, plan_name:str):      
+    def read_from_DB(self, user_id:str, category:str, level:str, plan_name:str):      
         try:
             doc = self.user_db.find({'user_id': user_id })[0]
-            total_topic:dict = doc['subject'][subject][level][plan_name]['total_topic']
-            dict_flow = doc['subject'][subject][level][plan_name]['flow']
+            total_topic:dict = doc['subject'][category][level][plan_name]['total_topic']
+            dict_flow = doc['subject'][category][level][plan_name]['flow']
             prev_topic_name:str = list(dict_flow.keys())[-1]
             prev_step:dict = dict_flow[prev_topic_name][-1]
             prev_action:int = prev_step['action_recommend']
@@ -326,37 +329,37 @@ class MongoDb:
         self.user_db.update_one(myquery, new_val)
 
 
-    def update_interuptedPlan(self, user_id:str, subject:str, level:str, curr_plan_name:str):
+    def update_interuptedPlan(self, user_id:str, category:str, level:str, curr_plan_name:str):
         try:
             doc = self.user_db.find({'user_id': user_id })[0]
-            exist_plan = list(doc['subject'][subject][level].keys())
+            exist_plan = list(doc['subject'][category][level].keys())
 
             # Update DONE plane
             if curr_plan_name in exist_plan:
-                value = {f'subject.{subject}.{level}.{curr_plan_name}.status' : DONE}
+                value = {f'subject.{category}.{level}.{curr_plan_name}.status' : DONE}
                 self.user_db.update_one({'user_id': user_id }, {'$set':value})
 
             # Log info new path with interuption
         except: # new user
             pass 
             
-    def update_total_masteries(self, user_id:str, subject:str, level:str, plan_name:str, BE_masteies:dict):
+    def update_total_masteries(self, user_id:str, category:str, level:str, plan_name:str, BE_masteies:dict):
         # Backend masteries exist 1 LDP = > inprocess => Update a value in total_masteries
         if len(BE_masteies) == 1: 
             lesson_id = list(BE_masteies.keys())[0]
             lesson_value = list(BE_masteies.values())[0]
 
-            value = {f'subject.{subject}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
+            value = {f'subject.{category}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
 
         # Backend masteries > 1 LDP = > new plan (mock test) => create total masteries
         else: # Update total values
-            value = {f'subject.{subject}.{level}.{plan_name}.total_masteries':BE_masteies}
+            value = {f'subject.{category}.{level}.{plan_name}.total_masteries':BE_masteies}
             print("====== WARNING: needd to review, in a exist plan, why  BE_masteries > 1 LDP")
         self.user_db.update_one({'user_id': user_id }, {'$set':value})
         
         # Get all LDP (total_masteries) exist in course
         doc = self.user_db.find({'user_id': user_id })[0]
-        total_masteries:dict = doc['subject'][subject][level][plan_name]['total_masteries']
+        total_masteries:dict = doc['subject'][category][level][plan_name]['total_masteries']
         
         return total_masteries
 
@@ -409,11 +412,14 @@ class MongoDb:
     
     def get_LDP_in_category(self, subject:str, level:str)->dict:
         category_LDP = {}
-        content = self.content_doc[subject][level].copy()
+        myquery = {"subject":subject}
+        doc = self.content_db.find(myquery)[0]
+        content = doc[subject][level].copy()
+        # content = self.content_doc[subject][level].copy()
         for category in content:
             list_LDP = []
             for topic_name in content[category]:
-                list_LDP += list(content[category][topic_name].values())    # Update LDP in a topic to list total LDP
+                list_LDP += list(content[category][topic_name].keys())    # Update LDP in a topic to list total LDP
             category_LDP.update({category:list_LDP})
         
         return category_LDP

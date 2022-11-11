@@ -20,6 +20,7 @@ class Item(BaseModel):
     plan_name:str
     masteries:dict = {}
     score:int = None
+    category:str = None
 
 def route_setup(app, RL_model):
     executor = ThreadPoolExecutor()
