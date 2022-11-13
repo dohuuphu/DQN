@@ -29,7 +29,7 @@ class SimStudent():
     self.percent_done_topic = 0
 
 
-  def step_api(self, action:int, observation_:list, zero_list:list, score:int): 
+  def step_api(self, action:int, observation_:list, zero_list:list, score:int=None): 
     reward = 0
     done = False
     observation = observation_.copy()
@@ -43,8 +43,8 @@ class SimStudent():
     # Need reward if fall into negative action
     
     #  ??
-    if self.history[action] == 0 and observation[action]==1:
-      reward += score-4
+    # if self.history[action] == 0 and observation[action]==1:
+    #   reward += score-4
 
     # Check done observation (a topic)
     if not 0.0 in observation:

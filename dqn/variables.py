@@ -37,7 +37,7 @@ CHECKDONE_PATH = 'logs/check_done.log'
 #Config database
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI_Kyons_new"
-COLLECTION_USER = "userdata"
+COLLECTION_USER = "user_data"
 COLLECTION_LESSON = "content_data"
 COLLECTION_LESSON_ID = "hashing_data"
 
@@ -51,3 +51,5 @@ ENGLISH = "English"
 MATH = "Math"
 ALGEBRA = "Algebra"
 GEOMETRY = "Geometry"
+PROBABILITY= "Probability_statistics"
+ANALYSIS = "Analysis"

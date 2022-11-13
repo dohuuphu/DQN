@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 
+from os.path import join
 from tensorflow import keras
 from collections import deque
 from threading import Lock, Event
@@ -56,7 +57,7 @@ class Learner():
 
         self.replay_memory:deque = replay_memory
 
-        self.train_summary_writer = tf.summary.create_file_writer("logs/" + MODEL_SAVE)
+        self.train_summary_writer = tf.summary.create_file_writer(join("logs", name, MODEL_SAVE))
     
     def train(self):
         MIN_REPLAY_SIZE = 500
@@ -160,10 +161,15 @@ class Recommend_core():
         self.english = Subject_core(name=ENGLISH, learning_rate=learning_rate)
         self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate)
         self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate)
+        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate)
+        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate)
+
 
         threads.append(threading.Thread(target=self.english.learner.train))
         threads.append(threading.Thread(target=self.math_Algebra.learner.train))
         threads.append(threading.Thread(target=self.math_Geometry.learner.train))
+        threads.append(threading.Thread(target=self.math_Probability.learner.train))
+        threads.append(threading.Thread(target=self.math_Analysis.learner.train))
         
         for thread in threads:
             thread.start()
@@ -179,7 +185,11 @@ class Recommend_core():
 
         if np.random.rand() <= epsilon:
             # Explore
-            action = random.randint(0, len(observation) - 1)
+            if random.randint(0,1):
+                action = random.randint(0, len(observation) - 1)
+            else:
+                index = random.randint(0, len(zero_list) - 1)
+                action = zero_list[index]
         else:
             # Exploit best known action
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
@@ -192,6 +202,12 @@ class Recommend_core():
             elif category == GEOMETRY:
                 self.math_Geometry.event_copy_weight.wait()
                 action = self.math_Geometry.model((encoded_reshaped, np.array([topic_number])))
+            elif category == PROBABILITY:
+                self.math_Probability.event_copy_weight.wait()
+                action = self.math_Probability.model((encoded_reshaped, np.array([topic_number])))
+            elif category == ANALYSIS:
+                self.math_Analysis.event_copy_weight.wait()
+                action = self.math_Analysis.model((encoded_reshaped, np.array([topic_number])))
 
             # Random action after explore 
             if prev_action == action:
@@ -231,8 +247,8 @@ class Recommend_core():
             
         else:   # English 
             parsed_item = item.copy()
-            parsed_item.category = sub_subject_name
-            result_items.append(item.copy())  
+            parsed_item.category = item.subject
+            result_items.append(parsed_item)  
             
         return result_items
 
@@ -247,8 +263,14 @@ class Recommend_core():
             for result in executor.map(self.process_learningPath, parsed_inputs):
                 results.update(result)
 
+        # Run with sequence
+        # for inputs in parsed_inputs:
+        #     results.update(self.process_learningPath(inputs))
+        
+        return results
+
     # Interact with user_data => using category as subject
-    # Interact with user_data => using category as category
+    # Interact with user_data => usingg category as category
 
     def process_learningPath(self, inputs:Item): 
         # Processing input and store database
@@ -295,7 +317,7 @@ class Recommend_core():
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
                                                 score=inputs.score)
 
-            episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.category, raw_zerolist=raw_zerolist)
+            episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category, raw_zerolist=raw_zerolist)
             
             # Topic is DONE
             if 0 not in curr_observation:
@@ -315,9 +337,9 @@ class Recommend_core():
                     curr_topic_name = list(data_readed.total_topic.keys())[next_topic]
 
                 # Update prev_score, path_status
-                info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.category,           # depend on inputs
-                            level = inputs.program_level, plan_name = inputs.plan_name, prev_score = inputs.score,     # depend on inputs
-                            total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
+                info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
+                            category=inputs.category, level = inputs.program_level, plan_name = inputs.plan_name, 
+                            prev_score = inputs.score, total_masteries=total_masteries, topic_masteries = masteries_of_topic,     # depend on inputs
                             action_index = None, action_id = None, topic_name = data_readed.topic_name, init_score = None, 
                             flow_topic = None)
                 
@@ -326,7 +348,7 @@ class Recommend_core():
                 self.lock.release()
 
         if plan_done:
-            return "DONE"
+            return {inputs.category:"done"}
         
 
         # Get lasted masteries, topic (update topic_masteries from total_masteries)
@@ -345,23 +367,23 @@ class Recommend_core():
                 break
             else:
                 # Update negative action (action_value = 1) to relay buffer 
-                init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
-                raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
-                item_relayBuffer = Item_relayBuffer(observation=curr_observation, topic_id=curr_topic_id, 
-                                                action_index=action_index, next_observation=curr_observation,
-                                                score=5) # need define score ??
+                if data_readed.prev_action is not None:
+                    init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
+                    raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
+                    item_relayBuffer = Item_relayBuffer(observation=curr_observation, topic_id=curr_topic_id, 
+                                                    action_index=action_index, next_observation=curr_observation) # score = None
 
-                episode = self.update_relayBuffer(item_relayBuffer, subject=inputs.category, raw_zerolist=raw_zerolist)
+                    episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category, raw_zerolist=raw_zerolist)
 
 
-        action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
+        action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
-        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.category,        # depend on inputs
-                    level = inputs.program_level, plan_name = inputs.plan_name, prev_score = prev_score,     # depend on inputs
-                    total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
-                    action_index = action_index, action_id = action_id, topic_name = curr_topic_name, init_score = init_score, 
-                    flow_topic = flow_topic)
+        info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,        # depend on inputs
+                    category=inputs.category, level = inputs.program_level, plan_name = inputs.plan_name,      # depend on inputs
+                    prev_score = prev_score, total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
+                    action_index = action_index, action_id = action_id, topic_name = curr_topic_name,  
+                    init_score = init_score,flow_topic = flow_topic)
         
         self.lock.acquire()
         self.database.write_to_DB(info)
@@ -397,13 +419,30 @@ class Recommend_core():
             episode = self.math_Geometry.episode
             self.math_Geometry.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
+          
+        elif category == PROBABILITY:
+            reward, done = self.math_Probability.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            zero_list=raw_zerolist, score=item_relayBuffer.score) 
+            self.math_Probability.episode += 1 if done else 0 
+            episode = self.math_Probability.episode
+            self.math_Probability.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
+
+        elif category == ANALYSIS:
+            reward, done = self.math_Analysis.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            zero_list=raw_zerolist, score=item_relayBuffer.score) 
+            self.math_Analysis.episode += 1 if done else 0 
+            episode = self.math_Analysis.episode
+            self.math_Analysis.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
+
 
         self.lock.release()
 
         return episode
 
     def is_suitable_action(self, zero_list:list, action_index:int):
-            return True if zero_list[action_index] == 0 else False
+            return True if action_index in zero_list else False
 
 
     @timer

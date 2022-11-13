@@ -46,17 +46,17 @@ def route_setup(app, RL_model):
 
     @app.get('/check_done_program')
     def check_done_program(item: Item):
-        (is_done, message), infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level, item.plan_name)
+        message, infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level, item.plan_name)
 
-        # Logging
-        if message == '':
-            info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|is_done: {is_done}|process_time: {infer_time:.3f}s'
-            logging.getLogger(CHECKDONE_LOG).info(info)
-        else:
-            info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|{item.plan_name}: {message}|process_time: {infer_time:.3f}s'
-            logging.getLogger(CHECKDONE_LOG).error(info)
+        # # Logging
+        # if message == '':
+        #     info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|is_done: {is_done}|process_time: {infer_time:.3f}s'
+        #     logging.getLogger(CHECKDONE_LOG).info(info)
+        # else:
+        #     info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|{item.plan_name}: {message}|process_time: {infer_time:.3f}s'
+        #     logging.getLogger(CHECKDONE_LOG).error(info)
 
-        return APIResponse.json_format(is_done, msg=message)
+        return APIResponse.json_format(message)
 
     
     
