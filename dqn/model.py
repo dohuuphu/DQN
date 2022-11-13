@@ -57,7 +57,7 @@ class Learner():
 
         self.replay_memory:deque = replay_memory
 
-        self.train_summary_writer = tf.summary.create_file_writer(join("logs", name, MODEL_SAVE))
+        self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE))
     
     def train(self):
         MIN_REPLAY_SIZE = 500
@@ -136,8 +136,8 @@ class Learner():
                         self.event_copy_weight.set()
                     
                     if self.episode %100 == 0:
-                        print("save model =======")
-                        self.model.save(f'weight/{MODEL_SAVE}')
+                        # print("save model =======")
+                        self.model.save(join("weight", self.name, MODEL_SAVE))
 
                     
                     K.clear_session()
@@ -185,7 +185,7 @@ class Recommend_core():
 
         if np.random.rand() <= epsilon:
             # Explore
-            if random.randint(0,1):
+            if np.random.choice([1,0],p=[0.4, 0.6]):
                 action = random.randint(0, len(observation) - 1)
             else:
                 index = random.randint(0, len(zero_list) - 1)
