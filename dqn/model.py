@@ -1,4 +1,5 @@
 import gc
+import time
 import random
 import logging
 import threading
@@ -269,13 +270,13 @@ class Recommend_core():
 
         # Run with multi-threading
         results = {}
-        # with ThreadPoolExecutor(max_workers=10) as executor:
-        #     for result in executor.map(self.process_learningPath, parsed_inputs):
-        #         results.update(result)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for result in executor.map(self.process_learningPath, parsed_inputs):
+                results.update(result)
 
         # Run with sequence
-        for inputs in parsed_inputs:
-            results.update(self.process_learningPath(inputs))
+        # for inputs in parsed_inputs:
+        #     results.update(self.process_learningPath(inputs))
         
         return results
 
@@ -283,6 +284,7 @@ class Recommend_core():
     # Interact with user_data => usingg category as category
 
     def process_learningPath(self, inputs:Item): 
+        start = time.time()
         # Processing input and store database
         data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.category, str(inputs.program_level), inputs.plan_name)
 
@@ -303,6 +305,7 @@ class Recommend_core():
             prev_action = None
             init_score = inputs.score
             total_masteries = inputs.masteries
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} New_plan {time.time()-start}')
   
         # Exist plan
         else: 
@@ -334,7 +337,7 @@ class Recommend_core():
                                                 score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
             episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
-            
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Before checkdone {time.time()-start}')
             # Topic is DONE
             if 0 not in curr_observation:
                 # Render next topic
@@ -362,6 +365,7 @@ class Recommend_core():
                 self.lock.acquire()
                 self.database.update_prev_score(Data_formater(info))
                 self.lock.release()
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} After checkdone {time.time()-start}')
 
         if plan_done:
             return {inputs.category:"done"}
@@ -376,6 +380,7 @@ class Recommend_core():
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
         
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Before get action {time.time()-start}')
         # Get action
         while True:
             action_index = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
@@ -393,7 +398,7 @@ class Recommend_core():
 
                     episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
 
-
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} After get action {time.time()-start}')
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
@@ -403,12 +408,12 @@ class Recommend_core():
                     action_index = action_index, action_id = action_id, topic_name = curr_topic_name,  
                     init_score = init_score,flow_topic = flow_topic)
         
-        self.lock.acquire()
+        # self.lock.acquire()
         self.database.write_to_DB(info)
-        self.lock.release()
+        # self.lock.release()
 
         gc.collect()
-
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done Write database {time.time()-start}')
         return {inputs.category:action_id}
 
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
@@ -418,7 +423,8 @@ class Recommend_core():
             reward, done = self.english.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                         num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
-            episode = self.english.episode[0]+1 if done else 0 
+            episode = self.english.episode[0]
+            episode += 1 if done else 0 
             self.english.episode.append(episode) 
 
             self.english.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
@@ -428,7 +434,8 @@ class Recommend_core():
             reward, done = self.math_Algebra.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                              num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
                                                              
-            episode = self.math_Algebra.episode + 1 if done else 0 
+            episode = self.math_Algebra.episode[0]
+            episode += 1 if done else 0 
             self.math_Algebra.episode.append(episode)
             
             self.math_Algebra.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
@@ -438,7 +445,8 @@ class Recommend_core():
             reward, done = self.math_Geometry.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
-            episode = self.math_Geometry.episode + 1 if done else 0 
+            episode = self.math_Geometry.episode[0]
+            episode += 1 if done else 0  
             self.math_Geometry.episode.append(episode)
 
             self.math_Geometry.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
@@ -448,7 +456,8 @@ class Recommend_core():
             reward, done = self.math_Probability.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
-            episode = self.math_Probability.episode + 1 if done else 0 
+            episode = self.math_Probability.episode[0]
+            episode += 1 if done else 0 
             self.math_Probability.episode.append(episode)
 
             self.math_Probability.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
@@ -458,7 +467,8 @@ class Recommend_core():
             reward, done = self.math_Analysis.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
-            episode = self.math_Analysis.episode + 1 if done else 0 
+            episode = self.math_Analysis.episode[0]
+            episode += 1 if done else 0  
             self.math_Analysis.episode.append(episode)
 
             self.math_Analysis.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 

@@ -1,7 +1,7 @@
 
 import logging
 import pymongo
-import zlib
+import time
 
 from dqn.variables import *
 from threading import Lock
@@ -296,7 +296,7 @@ class MongoDb:
         return Format_reader(total_topic, prev_topic_name, prev_action, zero_list, observation, total_step, num_items_inPool)
 
     def write_to_DB(self, raw_info:User):
-        
+        start = time.time()
         # Preprocess data
         parsed_user = raw_info #self.preprocess_userInfo(raw_info)
 
@@ -338,7 +338,9 @@ class MongoDb:
 
         else:
             self.update_prev_score(data)
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} update_prev_score {time.time()-start}')
             self.update_step(data)
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} update_step {time.time()-start}')
 
            
     def update_step(self, data:Data_formater):

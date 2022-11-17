@@ -32,7 +32,7 @@ def route_setup(app, RL_model):
             action = -1
         
         # Logging
-        info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|prev_score: {item.score}|new_lesson: {action}|process_time: {infer_time:.3f}s - {item.masteries}'
+        info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|prev_score: {item.score}|new_lesson: {action}|process_time: {infer_time:.3f}s - {item.masteries}\n===============\n'
         logging.getLogger(RECOMMEND_LOG).info(info)
 
 
