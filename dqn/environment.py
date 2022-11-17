@@ -23,40 +23,45 @@ class SimStudent():
 
     self.masteries = []
     # Initialize history
-    self.history = {}
+    self.num_history = 0
 
 
     self.percent_done_topic = 0
 
 
-  def step_api(self, action:int, observation_:list, zero_list:list, score:int=None): 
+  def step_api(self, total_step:int, action:int, observation_:list, num_items_inPool:int, score:int=None): 
+    '''
+      action was recommended by pass observation to model
+      total_step was read from database
+    '''
     reward = 0
     done = False
     observation = observation_.copy()
-    self.history.update({action:observation[action]})
+    # self.history.update({action:observation[action]})
 
-    if observation[action] == 1.0:
+    if observation[action] == 1.0: # Negative sample
       reward-=1
     else:
       reward +=1
-
-    # Need reward if fall into negative action
     
-    #  ??
-    # if self.history[action] == 0 and observation[action]==1:
-    #   reward += score-4
+    #  Calcualate with score
+    if score is not None and observation[action] == 0 and score >= 5:  
+      reward += score-4 
+
+      # Update observation
+      observation[action] = 1
 
     # Check done observation (a topic)
     if not 0.0 in observation:
       done = True
 
       # All recommened action is correct
-      if len(self.history) == len(zero_list):
+      if total_step <= num_items_inPool:
         reward+=10
       
       # Exist wrong recommended action (select 1)
-      if len(self.history) > len(zero_list):
-        reward -= len(self.history) - len(zero_list)
+      if total_step > num_items_inPool:
+        reward -= total_step - num_items_inPool
     
     return reward, done
 

@@ -8,12 +8,14 @@ from threading import Lock
 
 
 class Format_reader():
-    def __init__(self, total_topic:dict, topic_name:str, prev_action:int, zero_list:list, observation:list) -> None:
+    def __init__(self, total_topic:dict, topic_name:str, prev_action:int, zero_list:list, observation:list, total_step:int, num_items_inPool:int) -> None:
         self.total_topic = total_topic
         self.topic_name = topic_name
         self.prev_action = prev_action
         self.zero_list = zero_list
         self.observation = observation  
+        self.total_step = total_step
+        self.num_items_inPool = num_items_inPool
 
 class User():
     def __init__(self, user_id:str, user_mail:str, subject:str, category:str, level:int, plan_name:str,  total_masteries:dict, topic_masteries:dict, action_index:int, action_id:int, prev_score:int, topic_name:str, init_score:int = None, flow_topic:list=None) -> None:
@@ -27,11 +29,13 @@ class User():
         
         self.init_score = init_score
         self.topic_name = topic_name
-        self.total_masteries = total_masteries
-        self.topic_masteries = topic_masteries
+        self.total_masteries = total_masteries  # All LDP in mocktest, update value after everystep
+        self.topic_masteries = topic_masteries  # Map LDP to topic_pool, fixed init value 
         self.action_index = action_index
         self.action_id = action_id
         self.prev_score = prev_score
+
+        self.pool = {k: v for k, v in self.total_masteries.items() if v == 0}   # list zeros in mocktest
         
         self.path_status = INPROCESS
 
@@ -58,6 +62,7 @@ class Data_formater():
         key = f'{prefix}.{self.user.plan_name}' if prefix else self.user.plan_name
         return {key:{
                         "status": self.user.path_status,
+                        "pool": self.user.pool,
                         "total_topic": self.total_topic_info(),
                         "total_masteries": self.user.total_masteries,
                         "init_score": self.user.init_score,
@@ -182,20 +187,22 @@ class MongoDb:
 
         return False
 
-    def get_topic_masteries(self, subject:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
-        myquery = {"subject":subject}
-        doc = self.content_db.find(myquery)[0]
-        content = doc[subject][level].copy()
+    def get_topic_masteries(self, user_id:str, subject:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
         topic_masteries = None
-        for category in content:
-            if topic_name in content[category]:
-                topic_masteries = content[category][topic_name]
-                for lesson_id in total_masteries:
-                    if lesson_id in topic_masteries:
-                        topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
-
-        if topic_masteries is None:
-            print('topic does not exist in database')
+        try:
+            myquery = {"subject":subject}
+            doc = self.content_db.find(myquery)[0]
+            content = doc[subject][level].copy()
+            
+            for category in content:
+                if topic_name in content[category]:
+                    topic_masteries = content[category][topic_name]
+                    for lesson_id in total_masteries:
+                        if lesson_id in topic_masteries:
+                            topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
+        except:
+            info = f'{user_id}_{subject}_{level}_{topic_name} topic does not exist in database'
+            logging.getLogger(SYSTEM_LOG).info(info)
 
         return  topic_masteries
 
@@ -226,19 +233,24 @@ class MongoDb:
                 pass # Log lesson_id not exist in database
 
         # Calulate weight 
-        dict_topic_weight = self.calculate_topic_weight(dict_exist_topic)
- 
+        dict_topic_weight:list = self.calculate_topic_weight(dict_exist_topic)
+
         flow_topic = [topic_name for topic_name, _ in dict_topic_weight]
+
         return flow_topic#,  dict_exist_topic[flow_topic[0]]
     
-    def calculate_topic_weight(self,  dict_topic:dict)->dict:
+    def calculate_topic_weight(self,  dict_topic:dict)->list:
+
         dict_topic_weight = {}
         for topic_name in dict_topic:
             list_value = list(dict_topic[topic_name].values())
             avarage_value = float(sum(list_value) / len(list_value))
             dict_topic_weight.update({topic_name:avarage_value})
+
+        # Filter topic is done
+        filter_topic_weight = {k: v for k, v in dict_topic_weight.items() if v != 1}
         
-        return sorted(dict_topic_weight.items(), key=lambda item: item[1], reverse=True) # sort value High -> Low
+        return sorted(filter_topic_weight.items(), key=lambda item: item[1], reverse=True) # sort value High -> Low  [(key,val), (key,val),...]
 
     def get_topic_info(self, subject:str, level:str, lesson_id:str):
         '''
@@ -263,19 +275,25 @@ class MongoDb:
             doc = self.user_db.find({'user_id': user_id })[0]
             total_topic:dict = doc['category'][category][level][plan_name]['total_topic']
             dict_flow = doc['category'][category][level][plan_name]['flow']
+            num_items_inPool:int = len(doc['category'][category][level][plan_name]['pool'])
             prev_topic_name:str = list(dict_flow.keys())[-1]
             prev_step:dict = dict_flow[prev_topic_name][-1]
             prev_action:int = prev_step['action_recommend']
             prev_masteries:dict = prev_step['masteries']
+
+            # Get total step in a flow
+            total_step = -1 #step 0 is init value
+            for topic_name in dict_flow:
+                total_step += len(dict_flow[topic_name]) 
 
 
             observation = list(prev_masteries.values())
             zero_list = [i for i in range(len(observation)) if observation[i] == 0.0] 
       
         except: # new user
-            total_topic = prev_topic_name = prev_action = zero_list = observation = None
+            total_topic = prev_topic_name = prev_action = zero_list = observation = total_step = num_items_inPool =None
             
-        return Format_reader(total_topic, prev_topic_name, prev_action, zero_list, observation)
+        return Format_reader(total_topic, prev_topic_name, prev_action, zero_list, observation, total_step, num_items_inPool)
 
     def write_to_DB(self, raw_info:User):
         
@@ -382,7 +400,7 @@ class MongoDb:
         total_topic:dict = doc['category'][data.user.category][data.user.level][data.user.plan_name]['total_topic']
 
         for topic_name in total_topic:
-            topic_masteries:dict = self.get_topic_masteries(subject=data.user.subject, level=data.user.level, topic_name=topic_name, total_masteries=data.user.total_masteries)
+            topic_masteries:dict = self.get_topic_masteries(user_id=data.user.id,subject=data.user.subject, level=data.user.level, topic_name=topic_name, total_masteries=data.user.total_masteries)
 
             # Update total_topic value, topic_masteries is init masteries
             value = {f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
@@ -446,10 +464,6 @@ class MongoDb:
                 activate_mocktests.update({category:content[category][level][plan_name]})
 
         return activate_mocktests
-
-            
-
-
 
     def get_lessonID_in_topic(self, action_index:int, subject:str, category:str, level:str, topic_name:str)->list:
         myquery = {"subject":subject}

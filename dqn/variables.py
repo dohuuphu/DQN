@@ -10,14 +10,17 @@ RELATION = True
 
 
 # Topic table
-NUM_TOPIC = 30000
+NUM_TOPIC = 300000
 
 
 # Train
+NUM_EPISODE_TRAIN = 10
 RETRAIN = False
-MODEL_SAVE = F'action_{STATE_ACTION_SPACE}' + ('_relation' if RELATION else '' )+ ('_length' if REWARD_LENGTH else '') + ('_test')
+MODEL_SAVE = F'action_{STATE_ACTION_SPACE}'
 MODEL_RETRAIN =  '/home/hoangtv/phudh/DQN/weight/action_80_relation_length'
 
+EPISODE_SAVE = 100
+MIN_REPLAY_SIZE = 500
 train_episodes = 10000
 
 # Test
@@ -36,10 +39,10 @@ CHECKDONE_PATH = 'logs/check_done.log'
 
 #Config database
 COLLECTION_PATH = "mongodb://localhost:27017"
-MONGODB_NAME = "AI_Kyons_new"
-COLLECTION_USER = "user_data"
-COLLECTION_LESSON = "content_data"
-COLLECTION_LESSON_ID = "hashing_data"
+MONGODB_NAME = "AI"
+COLLECTION_USER = "User"
+COLLECTION_LESSON = "Content"
+COLLECTION_LESSON_ID = "Content_ID"
 
 
 
@@ -53,3 +56,12 @@ ALGEBRA = "Algebra"
 GEOMETRY = "Geometry"
 PROBABILITY= "Probability_statistics"
 ANALYSIS = "Analysis"
+
+
+# Cache file
+ENGLISH_R_BUFFER = "cache/English_relay_buffer.pickle"
+ALGEBRA_R_BUFFER = "cache/Algebra_relay_buffer.pickle"
+GEOMETRY_R_BUFFER = "cache/Geometry_relay_buffer.pickle"
+PROBABILITY_R_BUFFER= "cache/Probability_statistics_relay_buffer.pickle"
+ANALYSIS_R_BUFFER = "cache/Analysis_relay_buffer.pickle"
+

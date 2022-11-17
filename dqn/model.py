@@ -24,8 +24,8 @@ class Agent(keras.Model):
         super().__init__()
         init = tf.keras.initializers.HeUniform()
 
-        self.dense1 = keras.layers.Dense(1024, activation=tf.nn.tanh, kernel_initializer=init)
-        self.dense2 = keras.layers.Dense(512, activation=tf.nn.tanh, kernel_initializer=init)
+        self.dense1 = keras.layers.Dense(1024, activation=tf.nn.relu, kernel_initializer=init)
+        self.dense2 = keras.layers.Dense(512, activation=tf.nn.relu, kernel_initializer=init)
         # self.dense3 = keras.layers.Dense(256, activation=tf.nn.tanh, kernel_initializer=init)
         self.dense4 = keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init)
         self.topic_embedding = keras.layers.Embedding(number_topic, 32, input_length=1, trainable=False)
@@ -60,8 +60,8 @@ class Learner():
         self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE))
     
     def train(self):
-        MIN_REPLAY_SIZE = 500
-        batch_size = 1
+        
+        batch_size = 128
         learning_rate = 0.7 # Learning rate
         discount_factor = 0.618
         # a = 0
@@ -70,10 +70,12 @@ class Learner():
             # a+=1
             # if len(self.replay_memory) < MIN_REPLAY_SIZE and len(self.replay_memory) - temp_memory >=  batch_size:
             #     temp_memory = len(self.replay_memory)
-            if self.episode != 0 and self.episode % 10 == 0:
+            if self.episode[0] != 0 and self.episode[0] % NUM_EPISODE_TRAIN == 0:
                 # if a % 1000000 == 0:
                     # print(self.name, self.replay_memory)
                 if len(self.replay_memory) >  MIN_REPLAY_SIZE:
+                    logging.getLogger(SYSTEM_LOG).info(f'{self.name} at {self.episode[0]} -> Start trainning')
+
                     
                     # Get random data and remove them in replay_memory
                     self.lock.acquire()
@@ -119,14 +121,14 @@ class Learner():
                     his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
 
                     with self.train_summary_writer.as_default():
-                        tf.summary.scalar('loss', his.history['loss'][0], step=self.episode)
-                        tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode)
+                        tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
+                        tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode[0])
                     
 
                     # Update weight
-                    if self.episode % STEP_UPDATE_TARGETR_MODEL == 0:
+                    if self.episode[0] % STEP_UPDATE_TARGETR_MODEL == 0:
                         # Log
-                        logging.getLogger(SYSTEM_LOG).info(f'Update weight at {self.episode} episode !!!')
+                        logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
                         weight = self.model.get_weights()
                         self.target_model.set_weights(weight)
 
@@ -135,18 +137,26 @@ class Learner():
                         self.agent.set_weights(weight)
                         self.event_copy_weight.set()
                     
-                    if self.episode %100 == 0:
+                    if self.episode[0] % EPISODE_SAVE == 0:
                         # print("save model =======")
                         self.model.save(join("weight", self.name, MODEL_SAVE))
+                        logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
 
                     
                     K.clear_session()
 
 class Subject_core():
-    def __init__(self, name:str, learning_rate:float) -> None:
-        self.episode = 0
+    def __init__(self, name:str, learning_rate:float, item_cache:Item_cache) -> None:
+        # Get cache value of relay_buffer and episode
+        if not bool(item_cache): # cache is empty
+            self.episode = deque(maxlen=1)
+            self.episode.append(0)
+            self.replay_memory = deque(maxlen=1_500)
+        else:
+            self.episode = item_cache.episode
+            self.replay_memory = item_cache.relay_buffer
+
         self.env = SimStudent() 
-        self.replay_memory = deque(maxlen=1_500)
         self.event_copy_weight = threading.Event()  
         self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
         self.learner = Learner(name, self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode) 
@@ -158,11 +168,11 @@ class Recommend_core():
         self.database = MongoDb()
 
         threads = [] 
-        self.english = Subject_core(name=ENGLISH, learning_rate=learning_rate)
-        self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate)
-        self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate)
-        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate)
-        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate)
+        self.english = Subject_core(name=ENGLISH, learning_rate=learning_rate, item_cache=load_pkl(ENGLISH_R_BUFFER))
+        self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate, item_cache=load_pkl(ALGEBRA_R_BUFFER))
+        self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, item_cache=load_pkl(GEOMETRY_R_BUFFER))
+        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, item_cache=load_pkl(PROBABILITY_R_BUFFER))
+        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, item_cache=load_pkl(ANALYSIS_R_BUFFER))
 
 
         threads.append(threading.Thread(target=self.english.learner.train))
@@ -259,13 +269,13 @@ class Recommend_core():
 
         # Run with multi-threading
         results = {}
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            for result in executor.map(self.process_learningPath, parsed_inputs):
-                results.update(result)
+        # with ThreadPoolExecutor(max_workers=10) as executor:
+        #     for result in executor.map(self.process_learningPath, parsed_inputs):
+        #         results.update(result)
 
         # Run with sequence
-        # for inputs in parsed_inputs:
-        #     results.update(self.process_learningPath(inputs))
+        for inputs in parsed_inputs:
+            results.update(self.process_learningPath(inputs))
         
         return results
 
@@ -285,6 +295,10 @@ class Recommend_core():
         # New plan
         if data_readed.prev_action is None :  
             flow_topic = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
+
+            if not bool(flow_topic):    # don't have flow_topic when inputs is all 1
+                return {inputs.category:"done"}
+
             curr_topic_name = flow_topic[0]
             prev_action = None
             init_score = inputs.score
@@ -301,8 +315,10 @@ class Recommend_core():
             self.lock.release()
 
             # Get current_observation 
-            masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
+            masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, level=inputs.program_level, 
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
+            if masteries_of_topic is None:
+                return   {inputs.category:"error"}                                                            
             curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) # if done topic => curr_observation is full 1
             
             # Calculate reward for prev_observation
@@ -310,14 +326,14 @@ class Recommend_core():
             prev_topic_id = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # Process from curr_topic_name
 
             # Update replay_buffer
-            init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
-            raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
+            # init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
+            # raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
 
-            item_relayBuffer = Item_relayBuffer(observation=data_readed.observation, topic_id=prev_topic_id, 
+            item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=data_readed.observation, topic_id=prev_topic_id, 
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
-                                                score=inputs.score)
+                                                score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
-            episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category, raw_zerolist=raw_zerolist)
+            episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
             
             # Topic is DONE
             if 0 not in curr_observation:
@@ -352,8 +368,10 @@ class Recommend_core():
         
 
         # Get lasted masteries, topic (update topic_masteries from total_masteries)
-        masteries_of_topic:dict = self.database.get_topic_masteries(subject=inputs.subject, level=inputs.program_level, 
+        masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, level=inputs.program_level, 
                                                                     topic_name=curr_topic_name, total_masteries=total_masteries) # process from masteries_of_test
+        if masteries_of_topic is None:
+                return   {inputs.category:"error"} 
         curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name)
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
@@ -368,12 +386,12 @@ class Recommend_core():
             else:
                 # Update negative action (action_value = 1) to relay buffer 
                 if data_readed.prev_action is not None:
-                    init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
-                    raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
-                    item_relayBuffer = Item_relayBuffer(observation=curr_observation, topic_id=curr_topic_id, 
-                                                    action_index=action_index, next_observation=curr_observation) # score = None
+                    # init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
+                    # raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
+                    item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
+                                                    action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
 
-                    episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category, raw_zerolist=raw_zerolist)
+                    episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
 
 
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
@@ -393,48 +411,61 @@ class Recommend_core():
 
         return {inputs.category:action_id}
 
-    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item, raw_zerolist:list):
+    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
         self.lock.acquire()
                                                     
         if category == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
-            reward, done = self.english.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                        zero_list=raw_zerolist, score=item_relayBuffer.score) 
-            self.english.episode += 1 if done else 0 
-            episode = self.english.episode
+            reward, done = self.english.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                        num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+            
+            episode = self.english.episode[0]+1 if done else 0 
+            self.english.episode.append(episode) 
+
             self.english.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
         elif category == ALGEBRA:
-            reward, done = self.math_Algebra.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                             zero_list=raw_zerolist, score=item_relayBuffer.score) 
-            self.math_Algebra.episode += 1 if done else 0 
-            episode = self.math_Algebra.episode
+            reward, done = self.math_Algebra.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+                                                             
+            episode = self.math_Algebra.episode + 1 if done else 0 
+            self.math_Algebra.episode.append(episode)
+            
             self.math_Algebra.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
         elif category == GEOMETRY:
-            reward, done = self.math_Geometry.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            zero_list=raw_zerolist, score=item_relayBuffer.score) 
-            self.math_Geometry.episode += 1 if done else 0 
-            episode = self.math_Geometry.episode
+            reward, done = self.math_Geometry.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+            
+            episode = self.math_Geometry.episode + 1 if done else 0 
+            self.math_Geometry.episode.append(episode)
+
             self.math_Geometry.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
           
         elif category == PROBABILITY:
-            reward, done = self.math_Probability.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            zero_list=raw_zerolist, score=item_relayBuffer.score) 
-            self.math_Probability.episode += 1 if done else 0 
-            episode = self.math_Probability.episode
+            reward, done = self.math_Probability.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+            
+            episode = self.math_Probability.episode + 1 if done else 0 
+            self.math_Probability.episode.append(episode)
+
             self.math_Probability.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
         elif category == ANALYSIS:
-            reward, done = self.math_Analysis.env.step_api(action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            zero_list=raw_zerolist, score=item_relayBuffer.score) 
-            self.math_Analysis.episode += 1 if done else 0 
-            episode = self.math_Analysis.episode
+            reward, done = self.math_Analysis.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+            
+            episode = self.math_Analysis.episode + 1 if done else 0 
+            self.math_Analysis.episode.append(episode)
+
             self.math_Analysis.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
+
+        if done:
+            print(f'done {category}')
 
 
         self.lock.release()

@@ -3,11 +3,13 @@ import time
 import functools
 import numpy as np
 import logging
+import pickle
 
 from dqn.variables import STATE_ACTION_SPACE, SYSTEM_LOG
 
 class Item_relayBuffer:
-    def __init__(self, observation, topic_id, action_index, next_observation, reward= None, done=False, score=None):
+    def __init__(self, total_step, observation, topic_id, action_index, next_observation, num_items_inPool, reward= None, done=False, score=None):
+        self.total_step:int = total_step
         self.observation:list = observation
         self.topic_id:int = topic_id
         self.action_index:int = action_index
@@ -15,6 +17,12 @@ class Item_relayBuffer:
         self.next_observation:list = next_observation   # run action_index => next_observation
         self.done:bool = done
         self.score:float = score       # Score of action_index
+        self.num_items_inPool:int = num_items_inPool
+
+class Item_cache():
+   def __init__(self, episode, relay_buffer) -> None:
+      self.episode = episode
+      self.relay_buffer = relay_buffer
 
 
 def timer(func):
@@ -31,18 +39,21 @@ def timer(func):
 def get_time():
   return time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime())
 
-@timer
+
 def save_pkl(obj, path):
-  with open(path, 'w') as f:
-    cPickle.dump(obj, f)
+  with open(path, 'wb') as f:
+    pickle.dump(obj, f)
     print("  [*] save %s" % path)
 
-@timer
+
 def load_pkl(path):
-  with open(path) as f:
-    obj = cPickle.load(f)
-    print("  [*] load %s" % path)
-    return obj
+  try:
+    with open(path, 'rb') as f:
+      obj = pickle.load(f)
+      print("  [*] load %s" % path)
+      return obj
+  except:
+    pass
 
 @timer
 def save_npy(obj, path):
