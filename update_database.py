@@ -35,4 +35,4 @@ if __name__ == '__main__':
     database = MongoDb()
     route_setup_database(app, database)
 
-    uvicorn.run(app, host='0.0.0.0', port=30615)
+    uvicorn.run(app, host='0.0.0.0', port=30614)

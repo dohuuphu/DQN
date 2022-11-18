@@ -479,18 +479,20 @@ class MongoDb:
         myquery = {"subject":subject}
         doc = self.content_db.find(myquery)[0]
         content = doc[subject][level].copy()
+        lesson_id_in_topic = list(content[category][topic_name].keys())
+        action_id = lesson_id_in_topic[action_index]
 
-        if subject == MATH:
-            lesson_id_in_topic = list(content[category][topic_name].keys())
-            action_id = lesson_id_in_topic[action_index]
+        # if subject == MATH:
+        #     lesson_id_in_topic = list(content[category][topic_name].keys())
+        #     action_id = lesson_id_in_topic[action_index]
 
-        elif subject == ENGLISH:    # Because English don't split category
-            # content = doc[subject][level].copy()
-            # Get category contain topic_name
-            for category_ in content:
-                if topic_name in list(content[category_].keys()):
-                    lesson_id_in_topic = list(content[category_][topic_name].keys())
-                    action_id = lesson_id_in_topic[action_index]   
+        # elif subject == ENGLISH:    # Because English don't split category
+        #     # content = doc[subject][level].copy()
+        #     # Get category contain topic_name
+        #     for category_ in content:
+        #         if topic_name in list(content[category_].keys()):
+        #             lesson_id_in_topic = list(content[category_][topic_name].keys())
+        #             action_id = lesson_id_in_topic[action_index]   
 
         return action_id
     
@@ -498,7 +500,7 @@ class MongoDb:
         category_LDP = {}
         myquery = {"subject":subject}
         doc = self.content_db.find(myquery)[0]
-        content = doc[subject][level].copy()
+        content = doc[subject][level]
         # content = self.content_doc[subject][level].copy()
         for category in content:
             list_LDP = []

@@ -52,17 +52,21 @@ COLLECTION_LESSON_ID = "Content_dev_ID" # Content_ID, Content_dev_ID
 DONE = 'done'
 INPROCESS = 'inprocess'
 PENDING = 'pending'
+
 ENGLISH = "English"
+GRAMMAR = ["Grammar", "1"]
+VOVABULARY = ["Vocabulary", "2"]
 
 MATH = "Math"
-ALGEBRA = "Algebra"
-GEOMETRY = "Geometry"
-PROBABILITY= "Probability_statistics"
-ANALYSIS = "Analysis"
+ALGEBRA = ["Algebra"]
+GEOMETRY = ["Geometry"]
+PROBABILITY= ["Probability_statistics"]
+ANALYSIS = ["Analysis"]
 
 
 # Cache file
-ENGLISH_R_BUFFER = "cache/English_relay_buffer.pickle"
+GRAMMAR_R_BUFFER = "cache/Grammar_relay_buffer.pickle"
+VOCABULARY_R_BUFFER = "cache/Vocabulary_relay_buffer.pickle"
 ALGEBRA_R_BUFFER = "cache/Algebra_relay_buffer.pickle"
 GEOMETRY_R_BUFFER = "cache/Geometry_relay_buffer.pickle"
 PROBABILITY_R_BUFFER= "cache/Probability_statistics_relay_buffer.pickle"
