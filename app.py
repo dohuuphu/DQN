@@ -37,8 +37,11 @@ if __name__ == '__main__':
 
     # Cache relay_buffer
     def exit_handler():
-        english_cache = Item_cache(recommender.english.episode, recommender.english.replay_memory)
-        save_pkl(english_cache, ENGLISH_R_BUFFER)
+        grammar_cache = Item_cache(recommender.english_Grammar.episode, recommender.english_Grammar.replay_memory)
+        save_pkl(grammar_cache, GRAMMAR_R_BUFFER)
+
+        vocabulary_cache = Item_cache(recommender.english_Vocabulary.episode, recommender.english_Vocabulary.replay_memory)
+        save_pkl(vocabulary_cache, VOCABULARY_R_BUFFER)
 
         algebra_cache = Item_cache(recommender.math_Algebra.episode, recommender.math_Algebra.replay_memory)
         save_pkl(algebra_cache, ALGEBRA_R_BUFFER)
@@ -57,4 +60,4 @@ if __name__ == '__main__':
 
     atexit.register(exit_handler)
 
-    uvicorn.run(app, host='0.0.0.0', port=30616)
+    uvicorn.run(app, host='0.0.0.0', port=30615)

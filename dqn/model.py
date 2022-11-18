@@ -148,7 +148,7 @@ class Learner():
                     # K.clear_session()
 
 class Subject_core():
-    def __init__(self, name:str, learning_rate:float, item_cache:Item_cache) -> None:
+    def __init__(self, name:list, learning_rate:float, item_cache:Item_cache) -> None:
         # Get cache value of relay_buffer and episode
         if not bool(item_cache): # cache is empty
             self.episode = deque(maxlen=1)
@@ -162,7 +162,7 @@ class Subject_core():
         self.event_copy_weight = threading.Event()  
         self.event_copy_weight.set()
         self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-        self.learner = Learner(name, self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode) 
+        self.learner = Learner(name[0], self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode) 
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
@@ -171,14 +171,15 @@ class Recommend_core():
         self.database = MongoDb()
 
         threads = [] 
-        self.english = Subject_core(name=ENGLISH, learning_rate=learning_rate, item_cache=load_pkl(ENGLISH_R_BUFFER))
+        self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate, item_cache=load_pkl(GRAMMAR_R_BUFFER))
+        self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate, item_cache=load_pkl(VOCABULARY_R_BUFFER))
         self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate, item_cache=load_pkl(ALGEBRA_R_BUFFER))
         self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, item_cache=load_pkl(GEOMETRY_R_BUFFER))
         self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, item_cache=load_pkl(PROBABILITY_R_BUFFER))
         self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, item_cache=load_pkl(ANALYSIS_R_BUFFER))
 
-
-        threads.append(threading.Thread(target=self.english.learner.train))
+        threads.append(threading.Thread(target=self.english_Grammar.learner.train))
+        threads.append(threading.Thread(target=self.english_Vocabulary.learner.train))
         threads.append(threading.Thread(target=self.math_Algebra.learner.train))
         threads.append(threading.Thread(target=self.math_Geometry.learner.train))
         threads.append(threading.Thread(target=self.math_Probability.learner.train))
@@ -216,19 +217,22 @@ class Recommend_core():
             topic_number = int(topic_number)
             observation:np.ndarray = np.array(observation)
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            if category == ENGLISH:
-                self.english.event_copy_weight.wait() # wait if learner is setting weight
-                predicted = self.english.model((encoded_reshaped, np.array([topic_number])))
-            elif category == ALGEBRA:
+            if category in GRAMMAR:
+                self.english_Grammar.event_copy_weight.wait() # wait if learner is setting weight
+                predicted = self.english_Grammar.model((encoded_reshaped, np.array([topic_number])))
+            elif category in VOVABULARY:
+                self.english_Vocabulary.event_copy_weight.wait()
+                predicted = self.english_Vocabulary.model((encoded_reshaped, np.array([topic_number])))
+            elif category in ALGEBRA:
                 self.math_Algebra.event_copy_weight.wait()
                 predicted = self.math_Algebra.model((encoded_reshaped, np.array([topic_number])))
-            elif category == GEOMETRY:
+            elif category in GEOMETRY:
                 self.math_Geometry.event_copy_weight.wait()
                 predicted = self.math_Geometry.model((encoded_reshaped, np.array([topic_number])))
-            elif category == PROBABILITY:
+            elif category in PROBABILITY:
                 self.math_Probability.event_copy_weight.wait()
                 predicted = self.math_Probability.model((encoded_reshaped, np.array([topic_number])))
-            elif category == ANALYSIS:
+            elif category in ANALYSIS:
                 self.math_Analysis.event_copy_weight.wait()
                 predicted = self.math_Analysis.model((encoded_reshaped, np.array([topic_number])))
 
@@ -248,33 +252,26 @@ class Recommend_core():
             Create new items corresponding to sub_subject in raw_masteries 
         '''
         result_items = []
+        sub_subjects = {}
+        # Get total LPDs in the categorys
+        LPD_in_categorys:dict = self.database.get_LDP_in_category(item.subject, item.program_level)
+        for category in LPD_in_categorys:
+            total_LPD:list = LPD_in_categorys[category]
+            used_LPDs = {}
+            for lpd in item.masteries:
+                if lpd in total_LPD:
+                    used_LPDs.update({lpd:item.masteries[lpd]})
 
-        if item.subject == MATH:
-            sub_subjects = {}
-            # Get total LPDs in the categorys
-            LPD_in_categorys:dict = self.database.get_LDP_in_category(item.subject, item.program_level)
-            for category in LPD_in_categorys:
-                total_LPD:list = LPD_in_categorys[category]
-                used_LPDs = {}
-                for lpd in item.masteries:
-                    if lpd in total_LPD:
-                        used_LPDs.update({lpd:item.masteries[lpd]})
+            # Add LPD of category that exist in mock test   
+            if used_LPDs != {}:
+                sub_subjects.update({category:used_LPDs})
 
-                # Add LPD of category that exist in mock test   
-                if used_LPDs != {}:
-                    sub_subjects.update({category:used_LPDs})
-
-            # Create new item and add to result
-            for sub_subject_name in sub_subjects:
-                parsed_item = item.copy()
-                parsed_item.category = sub_subject_name
-                parsed_item.masteries = sub_subjects[sub_subject_name]
-                result_items.append(parsed_item)
-            
-        else:   # English 
+        # Create new item and add to result
+        for sub_subject_name in sub_subjects:
             parsed_item = item.copy()
-            parsed_item.category = item.subject
-            result_items.append(parsed_item)  
+            parsed_item.category = sub_subject_name
+            parsed_item.masteries = sub_subjects[sub_subject_name]
+            result_items.append(parsed_item)
             
         return result_items
 
@@ -442,19 +439,9 @@ class Recommend_core():
 
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
         self.lock.acquire()
-                                                    
-        if category == ENGLISH:       # action:int, observation_:list, zero_list:list, score:int
-            reward, done = self.english.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                        num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-            
-            episode = self.english.episode[0]
-            episode += 1 if done else 0 
-            self.english.episode.append(episode) 
 
-            self.english.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
-
-        elif category == ALGEBRA:
+        # MATH categorys                                        
+        if category in ALGEBRA:
             reward, done = self.math_Algebra.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                              num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
                                                              
@@ -465,7 +452,7 @@ class Recommend_core():
             self.math_Algebra.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
-        elif category == GEOMETRY:
+        elif category in GEOMETRY:
             reward, done = self.math_Geometry.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
@@ -476,7 +463,7 @@ class Recommend_core():
             self.math_Geometry.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
           
-        elif category == PROBABILITY:
+        elif category in PROBABILITY:
             reward, done = self.math_Probability.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
@@ -487,7 +474,7 @@ class Recommend_core():
             self.math_Probability.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
-        elif category == ANALYSIS:
+        elif category in ANALYSIS:
             reward, done = self.math_Analysis.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
             
@@ -496,6 +483,29 @@ class Recommend_core():
             self.math_Analysis.episode.append(episode)
 
             self.math_Analysis.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
+        
+        # ENGLISH categorys
+        elif category in GRAMMAR:
+            reward, done = self.english_Grammar.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+            
+            episode = self.english_Grammar.episode[0]
+            episode += 1 if done else 0  
+            self.english_Grammar.episode.append(episode)
+
+            self.english_Grammar.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                                reward, item_relayBuffer.next_observation, done])
+            
+        elif category in VOVABULARY:
+            reward, done = self.english_Vocabulary.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+            
+            episode = self.english_Vocabulary.episode[0]
+            episode += 1 if done else 0  
+            self.english_Vocabulary.episode.append(episode)
+
+            self.english_Vocabulary.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
 
         if done:
