@@ -9,8 +9,18 @@ from pydantic import BaseModel
 from api.response import APIResponse
 from concurrent.futures.thread import ThreadPoolExecutor
 
+from dqn.variables import *
+from dqn.database import MongoDb
+from dqn.insert_data_to_db import DB_Backend
+
 from dqn.variables import CHECKDONE_LOG, RECOMMEND_LOG, SYSTEM_LOG, DONE, INPROCESS
 
+
+class Database_info(BaseModel):
+    method:str
+    url:str
+    key:str
+    value:str
 
 class Item(BaseModel):
     user_id:str
@@ -26,13 +36,14 @@ def route_setup(app, RL_model):
     executor = ThreadPoolExecutor()
 
     def execute_api(item: Item):
+        info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|prev_score: {item.score}| masteries: {item.masteries}\n'
         try:
             action, infer_time = RL_model.get_learning_point(item)
         except OSError as e:
             action = -1
         
         # Logging
-        info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|prev_score: {item.score}|new_lesson: {action}|process_time: {infer_time:.3f}s - {item.masteries}\n===============\n'
+        info += f'\t\t\t\tnew_lesson: {action}|process_time: {infer_time:.3f}s\n===============\n'
         logging.getLogger(RECOMMEND_LOG).info(info)
 
 
@@ -58,7 +69,26 @@ def route_setup(app, RL_model):
 
         return APIResponse.json_format(message)
 
-    
+
+def route_setup_database(app, database:MongoDb): 
+
+    @app.post('/update_database')
+    async def udpate_database(db_info:Database_info):
+        # Get data from backend and preprocess
+        lesson_from_api = DB_Backend(method=db_info.method, url=db_info.url, header={db_info.key:db_info.value})
+        data = lesson_from_api.normalize_input()
+        
+        # Drop old collection
+        database.content_db.drop()
+        
+        # Create new collection and add data from backend
+        database.content_db = database.mydb[COLLECTION_LESSON]
+        database.content_db.insert_one(data)
+
+        # Hash_topic_ID
+
+
+
     
     # @app.middleware("http")
     # async def log_requests(request: Request, call_next):

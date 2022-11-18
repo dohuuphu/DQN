@@ -3,6 +3,7 @@ import time
 import random
 import logging
 import threading
+import asyncio
 import numpy as np
 import tensorflow as tf
 import keras.backend as K
@@ -33,15 +34,20 @@ class Agent(keras.Model):
 
 
     def call(self, inputs):
-        (observation, topic_ids) = inputs
-        topic_embedding = self.topic_embedding(topic_ids)
+        try:
+            (observation, topic_ids) = inputs
 
-        x = self.dense1(observation)
-        x = keras.layers.Concatenate(axis=1)([x, topic_embedding])
-        x = self.dense2(x)
-        # x = self.dense3(x)
-        output = self.dense4(x)
-        return output
+            topic_embedding = self.topic_embedding(topic_ids)
+
+            x = self.dense1(observation)
+            x = keras.layers.Concatenate(axis=1)([x, topic_embedding])
+            x = self.dense2(x)
+            # x = self.dense3(x)
+            output = self.dense4(x)
+
+            return output
+        except:
+            pass
 
 class Learner():
     def __init__(self, name, agent, event_copy_weight, learning_rate, replay_memory, episode):
@@ -62,27 +68,21 @@ class Learner():
     
     def train(self):
         
-        batch_size = 128
         learning_rate = 0.7 # Learning rate
         discount_factor = 0.618
-        # a = 0
 
         while True:
             # a+=1
-            # if len(self.replay_memory) < MIN_REPLAY_SIZE and len(self.replay_memory) - temp_memory >=  batch_size:
-            #     temp_memory = len(self.replay_memory)
-            if self.episode[0] != 0 and self.episode[0] % NUM_EPISODE_TRAIN == 0:
+            if self.episode[0] % NUM_EPISODE_TRAIN == 0 and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
+            # if self.episode[0] != 0 and self.episode[0] % NUM_EPISODE_TRAIN == 0:
                 # if a % 1000000 == 0:
                     # print(self.name, self.replay_memory)
-                if len(self.replay_memory) >  MIN_REPLAY_SIZE:
+                # if len(self.replay_memory) >  MIN_REPLAY_SIZE:
                     logging.getLogger(SYSTEM_LOG).info(f'{self.name} at {self.episode[0]} -> Start trainning')
 
                     
                     # Get random data and remove them in replay_memory
-                    self.lock.acquire()
-                    mini_batch = random.sample(self.replay_memory, batch_size)
-                    [self.replay_memory.remove(item) for item in mini_batch]
-                    self.lock.release()
+                    mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
 
                     current_states = []
                     current_topicID = []
@@ -119,7 +119,7 @@ class Learner():
                         Y.append(current_qs)
                         T.append(topic_number)
                         
-                    his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=batch_size, verbose=0, shuffle=True, workers=1)
+                    his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
 
                     with self.train_summary_writer.as_default():
                         tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
@@ -127,24 +127,25 @@ class Learner():
                     
 
                     # Update weight
-                    if self.episode[0] % STEP_UPDATE_TARGETR_MODEL == 0:
-                        # Log
-                        logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
-                        weight = self.model.get_weights()
-                        self.target_model.set_weights(weight)
+                    if self.episode[0] != 0:
+                        if self.episode[0] % STEP_UPDATE_TARGETR_MODEL == 0:
+                            # Log
+                            logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
+                            weight = self.model.get_weights()
+                            self.target_model.set_weights(weight)
 
-                        # Copy weight to Agent
-                        self.event_copy_weight.clear()
-                        self.agent.set_weights(weight)
-                        self.event_copy_weight.set()
-                    
-                    if self.episode[0] % EPISODE_SAVE == 0:
-                        # print("save model =======")
-                        self.model.save(join("weight", self.name, MODEL_SAVE))
-                        logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
+                            # Copy weight to Agent
+                            self.event_copy_weight.clear()
+                            self.agent.set_weights(weight)
+                            self.event_copy_weight.set()
+                        
+                        if self.episode[0] % EPISODE_SAVE == 0:
+                            # print("save model =======")
+                            self.model.save(join("weight", self.name, MODEL_SAVE))
+                            logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
 
                     
-                    K.clear_session()
+                    # K.clear_session()
 
 class Subject_core():
     def __init__(self, name:str, learning_rate:float, item_cache:Item_cache) -> None:
@@ -159,6 +160,7 @@ class Subject_core():
 
         self.env = SimStudent() 
         self.event_copy_weight = threading.Event()  
+        self.event_copy_weight.set()
         self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
         self.learner = Learner(name, self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode) 
 
@@ -185,46 +187,59 @@ class Recommend_core():
         for thread in threads:
             thread.start()
     
-    def predict_action(self, category:str, observation:np.ndarray, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
+    def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
         action = None
-
+        start = time.time()
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
-
-        if np.random.rand() <= epsilon:
+        # logging.getLogger(RECOMMEND_LOG).info(f'pred action 0: {time.time()-start}')
+        if np.random.rand() <= epsilon and False:
             # Explore
-            if np.random.choice([1,0],p=[0.4, 0.6]):
+            # logging.getLogger(RECOMMEND_LOG).info(f'pred action 1: {time.time()-start}')
+
+            if np.random.choice([1,0],p=[0.3, 0.7]):
+                # logging.getLogger(RECOMMEND_LOG).info(f'pred action 2: {time.time()-start}')
+
                 action = random.randint(0, len(observation) - 1)
             else:
+                # logging.getLogger(RECOMMEND_LOG).info(f'pred action 2: {time.time()-start}')
+
                 index = random.randint(0, len(zero_list) - 1)
                 action = zero_list[index]
+            # logging.getLogger(RECOMMEND_LOG).info(f'pred action end: {time.time()-start}')
+            
         else:
             # Exploit best known action
+            topic_number = int(topic_number)
+            observation:np.ndarray = np.array(observation)
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
             if category == ENGLISH:
                 self.english.event_copy_weight.wait() # wait if learner is setting weight
-                action = self.english.model((encoded_reshaped, np.array([topic_number])))
+                predicted = self.english.model((encoded_reshaped, np.array([topic_number])))
             elif category == ALGEBRA:
                 self.math_Algebra.event_copy_weight.wait()
-                action = self.math_Algebra.model((encoded_reshaped, np.array([topic_number])))
+                predicted = self.math_Algebra.model((encoded_reshaped, np.array([topic_number])))
             elif category == GEOMETRY:
                 self.math_Geometry.event_copy_weight.wait()
-                action = self.math_Geometry.model((encoded_reshaped, np.array([topic_number])))
+                predicted = self.math_Geometry.model((encoded_reshaped, np.array([topic_number])))
             elif category == PROBABILITY:
                 self.math_Probability.event_copy_weight.wait()
-                action = self.math_Probability.model((encoded_reshaped, np.array([topic_number])))
+                predicted = self.math_Probability.model((encoded_reshaped, np.array([topic_number])))
             elif category == ANALYSIS:
                 self.math_Analysis.event_copy_weight.wait()
-                action = self.math_Analysis.model((encoded_reshaped, np.array([topic_number])))
+                predicted = self.math_Analysis.model((encoded_reshaped, np.array([topic_number])))
+
+            # Get action 
+            action = np.argmax(predicted)
 
             # Random action after explore 
             if prev_action == action:
                 action = random.choice(zero_list)
         
-        K.clear_session()
+        # K.clear_session()
             
         return action 
 
@@ -270,14 +285,15 @@ class Recommend_core():
 
         # Run with multi-threading
         results = {}
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor() as executor:
             for result in executor.map(self.process_learningPath, parsed_inputs):
                 results.update(result)
 
         # Run with sequence
         # for inputs in parsed_inputs:
         #     results.update(self.process_learningPath(inputs))
-        
+
+
         return results
 
     # Interact with user_data => using category as subject
@@ -322,17 +338,16 @@ class Recommend_core():
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
             if masteries_of_topic is None:
                 return   {inputs.category:"error"}                                                            
-            curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) # if done topic => curr_observation is full 1
+            curr_observation:list = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) # if done topic => curr_observation is full 1
             
             # Calculate reward for prev_observation
             curr_topic_name = data_readed.topic_name   
             prev_topic_id = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # Process from curr_topic_name
 
             # Update replay_buffer
-            # init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
-            # raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
+            observation = rawObservation_to_standarObservation(data_readed.observation, data_readed.topic_name)
 
-            item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=data_readed.observation, topic_id=prev_topic_id, 
+            item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=observation, topic_id=prev_topic_id, 
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
                                                 score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
@@ -376,7 +391,7 @@ class Recommend_core():
                                                                     topic_name=curr_topic_name, total_masteries=total_masteries) # process from masteries_of_test
         if masteries_of_topic is None:
                 return   {inputs.category:"error"} 
-        curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name)
+        curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name) # create action_shape
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
         
@@ -385,18 +400,23 @@ class Recommend_core():
         while True:
             action_index = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
 
+            # Update new action to prev_action
+            prev_action = action_index
+            
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} getting action {time.time()-start}')
+
             # Select action until get right
             if self.is_suitable_action(curr_zero_list, action_index):
                 break
             else:
                 # Update negative action (action_value = 1) to relay buffer 
                 if data_readed.prev_action is not None:
-                    # init_topic_observation:list = list(data_readed.total_topic[curr_topic_name].values())
-                    # raw_zerolist:list = [i for i in range(len(init_topic_observation)) if init_topic_observation[i] == 0.0] 
+
                     item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
                                                     action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
 
                     episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+                    logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Update buffer {time.time()-start}')
 
         logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} After get action {time.time()-start}')
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
@@ -409,11 +429,15 @@ class Recommend_core():
                     init_score = init_score,flow_topic = flow_topic)
         
         # self.lock.acquire()
-        self.database.write_to_DB(info)
+        try:
+            self.database.write_to_DB(info)
+        except:
+            logging.getLogger(SYSTEM_LOG).error(f'user_id = {inputs.user_id},user_mail = {inputs.user_mail}, subject = {inputs.subject}\ncategory={inputs.category}, level = {inputs.program_level}, plan_name = {inputs.plan_name}\nprev_score = {prev_score}, total_masteries={total_masteries}, topic_masteries = {masteries_of_topic}\naction_index = {action_index}, action_id = {action_id}, topic_name = {curr_topic_name}\ninit_score = {init_score},flow_topic = {flow_topic}')
         # self.lock.release()
+        # logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done Write database {time.time()-start}')
 
-        gc.collect()
-        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done Write database {time.time()-start}')
+        # gc.collect()
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done collect {time.time()-start}')
         return {inputs.category:action_id}
 
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):

@@ -14,14 +14,16 @@ NUM_TOPIC = 300000
 
 
 # Train
-NUM_EPISODE_TRAIN = 10
+BATCH_SIZE = 16 #128
+MIN_REPLAY_SIZE = 32#500 
+train_episodes = 10000
+
+NUM_EPISODE_TRAIN = 2
 RETRAIN = False
 MODEL_SAVE = F'action_{STATE_ACTION_SPACE}'
 MODEL_RETRAIN =  '/home/hoangtv/phudh/DQN/weight/action_80_relation_length'
-
 EPISODE_SAVE = 100
-MIN_REPLAY_SIZE = 500
-train_episodes = 10000
+
 
 # Test
 MODEL_INFERENCE = '/home/ubuntu/DQN/weight/action_30_relation_length_2feature'
@@ -41,8 +43,8 @@ CHECKDONE_PATH = 'logs/check_done.log'
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI"
 COLLECTION_USER = "User"
-COLLECTION_LESSON = "Content"
-COLLECTION_LESSON_ID = "Content_ID"
+COLLECTION_LESSON = "Content_dev"   # Content_dev, Content
+COLLECTION_LESSON_ID = "Content_dev_ID" # Content_ID, Content_dev_ID
 
 
 
@@ -51,6 +53,7 @@ DONE = 'done'
 INPROCESS = 'inprocess'
 PENDING = 'pending'
 ENGLISH = "English"
+
 MATH = "Math"
 ALGEBRA = "Algebra"
 GEOMETRY = "Geometry"

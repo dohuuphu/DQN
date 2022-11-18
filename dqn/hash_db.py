@@ -40,8 +40,8 @@ for i in data:
     else:
         hash_subject = dict_subject[subject]
 print(hash_dict)
-client =  pymongo.MongoClient("mongodb://localhost:27017")
-mydb = client["AI_Kyons_new"]
-mycol = mydb["hashing_data"]
-mycol.insert_one(hash_dict)
-    # print(i[list(i)[-1]])
+# client =  pymongo.MongoClient("mongodb://localhost:27017")
+# mydb = client["AI_Kyons_new"]
+# mycol = mydb["hashing_data"]
+# mycol.insert_one(hash_dict)
+#     # print(i[list(i)[-1]])
