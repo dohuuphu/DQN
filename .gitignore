@@ -92,4 +92,5 @@ Session.vim
 kyon_model*/
 weight/
 logs/
+cache/
 test.py
