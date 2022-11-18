@@ -36,18 +36,18 @@ def route_setup(app, RL_model):
     executor = ThreadPoolExecutor()
 
     def execute_api(item: Item):
-        info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|prev_score: {item.score}| masteries: {item.masteries}\n'
+
         try:
-            action, infer_time = RL_model.get_learning_point(item)
+            result, infer_time = RL_model.get_learning_point(item)
         except OSError as e:
-            action = -1
+            result = 'error'
         
         # Logging
-        info += f'\t\t\t\tnew_lesson: {action}|process_time: {infer_time:.3f}s\n===============\n'
+        info = f'request_INFO: {item.user_mail}_{item.subject}_{item.program_level}|prev_score: {item.score}| masteries: {item.masteries}\n\t\t\t\t\t\t\t\tresult{result}\n\t\t\t\t\t\t\t\tprocess_time: {infer_time:.3f}s\n===============\n'
         logging.getLogger(RECOMMEND_LOG).info(info)
 
 
-        return APIResponse.json_format(action)
+        return APIResponse.json_format(result)
 
 
     @app.post('/recommender')
