@@ -8,13 +8,13 @@ import pickle
 from dqn.variables import STATE_ACTION_SPACE, SYSTEM_LOG
 
 class Item_relayBuffer:
-    def __init__(self, total_step, observation, topic_id, action_index, next_observation, num_items_inPool, reward= None, done=False, score=None):
+    def __init__(self, total_step, observation:list, topic_id:int, action_index, next_observation:list, num_items_inPool, reward= None, done=False, score=None):
         self.total_step:int = total_step
-        self.observation:list = observation
-        self.topic_id:int = topic_id
-        self.action_index:int = action_index
+        self.observation:np.ndarray = np.array(observation)
+        self.topic_id:int = int(topic_id)
+        self.action_index:int = int(action_index)
         self.reward:float = reward      #reward for choice action_index
-        self.next_observation:list = next_observation   # run action_index => next_observation
+        self.next_observation:np.ndarray = np.array(next_observation)   # run action_index => next_observation
         self.done:bool = done
         self.score:float = score       # Score of action_index
         self.num_items_inPool:int = num_items_inPool
@@ -67,7 +67,7 @@ def load_npy(path):
   return obj
 
 
-def rawObservation_to_standarObservation(raw_observation:list, topic:str)->np.ndarray:
+def rawObservation_to_standarObservation(raw_observation:list, topic:str)->list:
         standar_observation = [1.0]*STATE_ACTION_SPACE
 
         if len(raw_observation) > len(standar_observation):
@@ -78,7 +78,7 @@ def rawObservation_to_standarObservation(raw_observation:list, topic:str)->np.nd
         for id, val in enumerate(raw_observation):
             standar_observation[id] = val
 
-        return np.array(standar_observation)
+        return standar_observation
 
 # @safety_thread
 # def read_from_DB(student_id:str, subject:str, level:int):

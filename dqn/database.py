@@ -1,7 +1,7 @@
 
 import logging
 import pymongo
-import zlib
+import time
 
 from dqn.variables import *
 from threading import Lock
@@ -111,6 +111,7 @@ class MongoDb:
         # self.content_doc = self.content_db.find_one() # review
 
         self.locker = Lock()
+    
 
     def preprocess_userInfo(self, user_info:User):
 
@@ -206,9 +207,9 @@ class MongoDb:
 
         return  topic_masteries
 
-    def get_topic_id(self,  subject:str, level:str, topic_name:str):
+    def get_topic_id(self,  subject:str, level:str, topic_name:str)->int:
         key = f'{subject}_{level}_{topic_name}'
-        return self.content_id[key]
+        return int(self.content_id[key])
     
     def prepare_flow_topic(self, subject:str, level:str, total_masteries:dict=None)->list:
         '''
@@ -296,7 +297,7 @@ class MongoDb:
         return Format_reader(total_topic, prev_topic_name, prev_action, zero_list, observation, total_step, num_items_inPool)
 
     def write_to_DB(self, raw_info:User):
-        
+        start = time.time()
         # Preprocess data
         parsed_user = raw_info #self.preprocess_userInfo(raw_info)
 
@@ -307,9 +308,11 @@ class MongoDb:
 
         if self.is_newUser(data.user.id): 
             self.user_db.insert_one(data.user_info())
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newUser {time.time()-start}')
 
             # Update total_topic_value
             self.update_total_topic(data=data)
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newUser_end {time.time()-start}')
 
         elif self.is_newcategory(data.user):
             prefix = 'category'
@@ -329,16 +332,23 @@ class MongoDb:
             prefix = f'category.{data.user.category}.{data.user.level}'
             self.user_db.update_one(user_indentify, {'$set':data.path_info(prefix)})
 
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newPath {time.time()-start}')
+            
             # Update total_topic_value
             self.update_total_topic(data=data)
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newPath_end {time.time()-start}')
+
 
         elif self.is_newTopic(data.user):
             prefix = f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.flow'
             self.user_db.update_one(user_indentify, {'$set':data.topic_info(prefix)})
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newTopic {time.time()-start}')
 
         else:
             self.update_prev_score(data)
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} update_prev_score {time.time()-start}')
             self.update_step(data)
+            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} update_step {time.time()-start}')
 
            
     def update_step(self, data:Data_formater):

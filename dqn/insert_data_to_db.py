@@ -14,11 +14,11 @@ class DBLesson:
     def insert_lesson_to_mongo(self, data):
         self.mycol.insert_one(data)
 
-class GetReturnForBackend():
-    def __init__(self) -> None:
-        self.url = "https://api.tuhoconline.org/ai/lessons"
-        self.headers = {"X-Authenticated-User":"kyons-ai-api-key"}
-        self.respone = requests.request("GET",  self.url, headers=self.headers)
+class DB_Backend():
+    def __init__(self, method:str, url:str, header:dict) -> None:
+        # self.url = url  #"https://api.tuhoconline.org/ai/lessons"
+        # self.headers = {key:val} #{"X-Authenticated-User":"kyons-ai-api-key"}
+        self.respone = requests.request(method, url, headers=header)
     def normalize_input(self):
         response_json = json.loads(self.respone.text)
         df = pd.DataFrame(response_json)
@@ -59,6 +59,6 @@ class GetReturnForBackend():
 
 if __name__ == "__main__":
     database = DBLesson()
-    lesson_from_api = GetReturnForBackend()
+    lesson_from_api = DB_Backend()
     data = lesson_from_api.normalize_input()
     database.insert_lesson_to_mongo(data)
