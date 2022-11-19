@@ -74,62 +74,62 @@ class Learner():
         discount_factor = 0.618
 
         while True:
-            # a+=1
-            if self.episode[0] % NUM_EPISODE_TRAIN == 0 and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
-            # if self.episode[0] != 0 and self.episode[0] % NUM_EPISODE_TRAIN == 0:
-                # if a % 1000000 == 0:
-                    # print(self.name, self.replay_memory)
-                # if len(self.replay_memory) >  MIN_REPLAY_SIZE:
-                    logging.getLogger(SYSTEM_LOG).info(f'{self.name} at {self.episode[0]} -> Start trainning')
+            if self.episode[0] != 0:
+                if self.episode[0] % NUM_EPISODE_TRAIN == 0 and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
+                # if self.episode[0] != 0 and self.episode[0] % NUM_EPISODE_TRAIN == 0:
+                    # if a % 1000000 == 0:
+                        # print(self.name, self.replay_memory)
+                    # if len(self.replay_memory) >  MIN_REPLAY_SIZE:
+                        logging.getLogger(SYSTEM_LOG).info(f'{self.name} at {self.episode[0]} -> Start trainning')
 
-                    
-                    # Get random data and remove them in replay_memory
-                    mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
-
-                    current_states = []
-                    current_topicID = []
-                    new_states = []
-                    for transition in mini_batch:
-                        state:np.ndarray = transition[0]
-                        current_states.append(state.reshape([1, state.shape[0]]))
-
-                        topic_number:int = transition[1]
-                        current_topicID.append(topic_number)
-
-                        new_state:np.ndarray = transition[4]
-                        new_states.append(new_state.reshape([1, new_state.shape[0]]))
-                    
-                    current_states = np.vstack(current_states)
-                    new_states = np.vstack(new_states)
-
-                    current_qs_list = self.model((current_states, np.array(current_topicID))).numpy()
-                    future_qs_list = self.target_model((new_states, np.array(current_topicID))).numpy()
-
-                    X = []
-                    Y = []
-                    T = []
-                    for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
-                        if not done:
-                            max_future_q = reward + discount_factor * np.max(future_qs_list[index])
-                        else:
-                            max_future_q = reward
-
-                        current_qs = current_qs_list[index]
-                        current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
-
-                        X.append(observation)
-                        Y.append(current_qs)
-                        T.append(topic_number)
                         
-                    his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
+                        # Get random data and remove them in replay_memory
+                        mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
 
-                    with self.train_summary_writer.as_default():
-                        tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
-                        tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode[0])
-                    
+                        current_states = []
+                        current_topicID = []
+                        new_states = []
+                        for transition in mini_batch:
+                            state:np.ndarray = transition[0]
+                            current_states.append(state.reshape([1, state.shape[0]]))
 
-                    # Update weight
-                    if self.episode[0] != 0:
+                            topic_number:int = transition[1]
+                            current_topicID.append(topic_number)
+
+                            new_state:np.ndarray = transition[4]
+                            new_states.append(new_state.reshape([1, new_state.shape[0]]))
+                        
+                        current_states = np.vstack(current_states)
+                        new_states = np.vstack(new_states)
+
+                        current_qs_list = self.model((current_states, np.array(current_topicID))).numpy()
+                        future_qs_list = self.target_model((new_states, np.array(current_topicID))).numpy()
+
+                        X = []
+                        Y = []
+                        T = []
+                        for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
+                            if not done:
+                                max_future_q = reward + discount_factor * np.max(future_qs_list[index])
+                            else:
+                                max_future_q = reward
+
+                            current_qs = current_qs_list[index]
+                            current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
+
+                            X.append(observation)
+                            Y.append(current_qs)
+                            T.append(topic_number)
+                            
+                        his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
+
+                        with self.train_summary_writer.as_default():
+                            tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
+                            tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode[0])
+                        
+
+                        # Update weight
+                        
                         if self.episode[0] % STEP_UPDATE_TARGETR_MODEL == 0:
                             # Log
                             logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
@@ -145,8 +145,8 @@ class Learner():
                             self.model.save(join("weight", self.name, MODEL_SAVE))
                             logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
 
-                    
-                    # K.clear_session()
+                        
+                        # K.clear_session()
 
 class Subject_core():
     def __init__(self, name:list, learning_rate:float, item_cache:Item_cache) -> None:
@@ -299,6 +299,8 @@ class Recommend_core():
 
     def process_learningPath(self, inputs:Item): 
         start = time.time()
+        if len(inputs.masteries)>1 and 0 not in list(inputs.masteries.values()):
+                return   {inputs.category:"Done"} 
         # Processing input and store database
         data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.category, str(inputs.program_level), inputs.plan_name)
 
@@ -395,6 +397,8 @@ class Recommend_core():
         # Match raw_observ to standard_observ (equal to action_space)
         curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name) # create action_shape
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
+        if curr_zero_list == []:
+            logging.getLogger(SYSTEM_LOG).error(f'{inputs.user_mail}_{inputs.category} topic name{curr_topic_name} masteries {masteries_of_topic}')
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
         
         logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Before get action {time.time()-start}')
@@ -431,14 +435,14 @@ class Recommend_core():
                     init_score = init_score,flow_topic = flow_topic)
         
         # self.lock.acquire()
-        # try:
-        #     self.database.write_to_DB(info)
-        # except:
-            # logging.getLogger(SYSTEM_LOG).error(f'user_id = {inputs.user_id},user_mail = {inputs.user_mail}, subject = {inputs.subject}\ncategory={inputs.category}, level = {inputs.program_level}, plan_name = {inputs.plan_name}\nprev_score = {prev_score}, total_masteries={total_masteries}, topic_masteries = {masteries_of_topic}\naction_index = {action_index}, action_id = {action_id}, topic_name = {curr_topic_name}\ninit_score = {init_score},flow_topic = {flow_topic}')
+        try:
+            self.database.write_to_DB(info)
+        except:
+            logging.getLogger(SYSTEM_LOG).error(f'user_id = {inputs.user_id},user_mail = {inputs.user_mail}, subject = {inputs.subject}\ncategory={inputs.category}, level = {inputs.program_level}, plan_name = {inputs.plan_name}\nprev_score = {prev_score}, total_masteries={total_masteries}, topic_masteries = {masteries_of_topic}\naction_index = {action_index}, action_id = {action_id}, topic_name = {curr_topic_name}\ninit_score = {init_score},flow_topic = {flow_topic}')
         # self.lock.release()
         # logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done Write database {time.time()-start}')
 
-        self.database.write_to_DB(info)
+        # self.database.write_to_DB(info)
 
 
         # gc.collect()

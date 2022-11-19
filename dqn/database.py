@@ -139,12 +139,6 @@ class MongoDb:
             if next_index >= len(user_info.flow_topic) :
                 print('done path')
                 user_info.path_status = DONE
-
-            # else:
-            #     # Get next topic_name & topic_masteries
-            #     user_info.topic_name = user_info.flow_topic[next_index]  
-            #     user_info.topic_masteries = self.get_topic_masteries(user_info.topic_name)
-
         else:
             pass
 
@@ -207,17 +201,21 @@ class MongoDb:
         return False
 
     def get_topic_masteries(self, user_id:str, subject:str, category:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
+        '''
+            Get and update value of  masteries_topic from total masteries
+        '''
+        
         topic_masteries = None
         try:
-            content:dict = self.content_data[subject][level][category]
-            if topic_name in content:
-                topic_masteries:dict = content[topic_name]
-                for lesson_id in total_masteries:
-                    if lesson_id in topic_masteries:
-                        topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
-        except:
-            info = f'{user_id}_{subject}_{level}_{topic_name} topic does not exist in database'
-            logging.getLogger(SYSTEM_LOG).info(info)
+            topic_masteries:dict = self.content_data[subject][level][category][topic_name].copy()
+            for lesson_id in total_masteries:
+                if lesson_id in topic_masteries:
+                    topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
+            
+
+        except OSError as e:
+            info = f'{user_id}_{subject}_{level}_{topic_name}:get_topic_masteries {e}'
+            logging.getLogger(SYSTEM_LOG).error(info)
 
         return  topic_masteries
 
@@ -271,11 +269,11 @@ class MongoDb:
         '''
             Get topic_name and topic_masteries from lesson_id      
         '''
-        content = self.content_data[subject][level]
+        content = self.content_data[subject][level].copy()
         for category in content:
             for topic_name in content[category]:
                 if lesson_id in list(content[category][topic_name].keys()):
-                    return topic_name, content[category][topic_name]
+                    return topic_name, content[category][topic_name].copy()
 
         return None, None
 
@@ -465,7 +463,7 @@ class MongoDb:
                 result.update({category : {"status": activate_mocktests[category]['status'],
                                             "percent" : percent_category}})
                 
-            done_percent = done_percent/len(activate_mocktests)
+            done_percent = int(done_percent/len(activate_mocktests))
             result.update({"Learning_goal": f'{done_percent}%'})
         except:
             result = "User does not exist!!!"
@@ -491,7 +489,7 @@ class MongoDb:
         ''' 
             Get lpd_id from action_index (prediction)
         '''
-        content = self.content_data[subject][level]
+        content = self.content_data[subject][level].copy()
 
         # Get all lesson_id in a topic 
         lesson_id_in_topic = list(content[category][topic_name].keys())
@@ -518,7 +516,7 @@ class MongoDb:
         '''
         category_LDP = {}
 
-        content = self.content_data[subject][level]
+        content = self.content_data[subject][level].copy()
 
         for category in content:
             list_LDP = []
