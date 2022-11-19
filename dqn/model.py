@@ -1,4 +1,4 @@
-import gc
+import sys
 import time
 import random
 import logging
@@ -8,17 +8,19 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 
-from os.path import join
+from os.path import join, dirname, abspath
 from tensorflow import keras
 from collections import deque
 from threading import Lock, Event
 from concurrent.futures import ThreadPoolExecutor
 
+sys.path.append('./dqn')
+
 from api.route import Item
 from dqn.utils import *
 from dqn.variables import *
 from dqn.environment import SimStudent
-from dqn.database import MongoDb, Format_reader, User, Data_formater
+from dqn.database.core import MongoDb, Format_reader, User, Data_formater
 
 
 class Agent(keras.Model):
@@ -254,7 +256,7 @@ class Recommend_core():
         result_items = []
         sub_subjects = {}
         # Get total LPDs in the categorys
-        LPD_in_categorys:dict = self.database.get_LDP_in_category(item.subject, item.program_level)
+        LPD_in_categorys:dict = self.database.get_LPD_in_category(item.subject, item.program_level)
         for category in LPD_in_categorys:
             total_LPD:list = LPD_in_categorys[category]
             used_LPDs = {}
@@ -331,11 +333,13 @@ class Recommend_core():
             self.lock.release()
 
             # Get current_observation 
-            masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, level=inputs.program_level, 
+            masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, category=inputs.category, level=inputs.program_level, 
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
             if masteries_of_topic is None:
-                return   {inputs.category:"error"}                                                            
-            curr_observation:list = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) # if done topic => curr_observation is full 1
+                return   {inputs.category:"error"}    
+
+            # Match raw_observ to standard_observ (equal to action_space)
+            curr_observation:list = rawObservation_to_standarObservation(list(masteries_of_topic.values()), data_readed.topic_name) 
             
             # Calculate reward for prev_observation
             curr_topic_name = data_readed.topic_name   
@@ -384,10 +388,12 @@ class Recommend_core():
         
 
         # Get lasted masteries, topic (update topic_masteries from total_masteries)
-        masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, level=inputs.program_level, 
+        masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, category=inputs.category, level=inputs.program_level, 
                                                                     topic_name=curr_topic_name, total_masteries=total_masteries) # process from masteries_of_test
         if masteries_of_topic is None:
-                return   {inputs.category:"error"} 
+                return   {inputs.category:"error"}
+
+        # Match raw_observ to standard_observ (equal to action_space)
         curr_observation:np.ndarray = rawObservation_to_standarObservation(list(masteries_of_topic.values()), curr_topic_name) # create action_shape
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name

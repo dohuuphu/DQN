@@ -63,6 +63,8 @@ GEOMETRY = ["Geometry"]
 PROBABILITY= ["Probability_statistics"]
 ANALYSIS = ["Analysis"]
 
+TOTAL_SUBJECT=[MATH, ENGLISH]
+
 
 # Cache file
 GRAMMAR_R_BUFFER = "cache/Grammar_relay_buffer.pickle"

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.route import route_setup_database
 from dqn.model import Recommend_core
 from dqn.log import Logger 
-from dqn.database import MongoDb
+from dqn.database.core import MongoDb
 from dqn.variables import *
 
 os.environ['TZ'] = 'Asia/Bangkok'

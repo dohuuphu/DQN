@@ -10,7 +10,7 @@ from api.response import APIResponse
 from concurrent.futures.thread import ThreadPoolExecutor
 
 from dqn.variables import *
-from dqn.database import MongoDb
+from dqn.database.core import MongoDb
 from dqn.insert_data_to_db import DB_Backend
 from typing import Optional
 
