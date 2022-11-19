@@ -459,7 +459,7 @@ class MongoDb:
                 result.update({"Learning_goal": f'{done_percent}%'})
             except:
                 result = "User does not exist!!!"
-        return result
+                return result
                     
 
 
