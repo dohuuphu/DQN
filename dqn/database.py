@@ -2,10 +2,6 @@
 import logging
 import pymongo
 import time
-import sys
-# from os.path import dirname, abspath
-
-# sys.path.append(abspath(dirname(dirname(dirname(__file__)))))
 
 from dqn.variables import *
 from threading import Lock
@@ -105,28 +101,6 @@ class Data_formater():
         return f'category.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}'
     
 # ============================= DATABASE WORSPACE =========================
-# class DB_Content():
-#     def __init__(self, database) -> None:
-#         self.db_content = database[COLLECTION_LESSON]
-#         self.data = self.get_content()
-
-
-#     def get_content(self):
-#         data = {subject: {} for subject in TOTAL_SUBJECT}
-#         for subject in data:
-#             try:
-#                 # Querry item in db
-#                 myquery = {"subject":subject}
-#                 doc = self.db_content.find(myquery)[0]
-
-#                 # Get content of item and update to result
-#                 content = doc[subject]
-#                 data[subject].update(content)
-#             except:
-#                 pass
-        
-#         return data
-
 
 class MongoDb:
     def __init__(self):
@@ -232,22 +206,6 @@ class MongoDb:
 
         return False
 
-    # def get_topic_masteries(self, user_id:str, subject:str, category:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
-    #     topic_masteries = None
-    #     try:
-    #         content = self.content_data[subject][level]
-    #         for category in content:
-    #             if topic_name in content[category]:
-    #                 topic_masteries = content[category][topic_name]
-    #                 for lesson_id in total_masteries:
-    #                     if lesson_id in topic_masteries:
-    #                         topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
-    #     except:
-    #         info = f'{user_id}_{subject}_{level}_{topic_name} topic does not exist in database'
-    #         logging.getLogger(SYSTEM_LOG).info(info)
-
-    #     return  topic_masteries
-
     def get_topic_masteries(self, user_id:str, subject:str, category:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
         topic_masteries = None
         try:
@@ -265,7 +223,6 @@ class MongoDb:
 
     def get_topic_id(self,  subject:str, level:str, topic_name:str)->int:
         key = f'{subject}_{level}_{topic_name}'
-        print(key)
         return int(self.content_id[key])
     
     def prepare_flow_topic(self, subject:str, level:str, total_masteries:dict=None)->list:

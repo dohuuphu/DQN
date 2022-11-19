@@ -10,7 +10,7 @@ from api.response import APIResponse
 from concurrent.futures.thread import ThreadPoolExecutor
 
 from dqn.variables import *
-from dqn.database.core import MongoDb
+from dqn.database import MongoDb
 from dqn.insert_data_to_db import DB_Backend
 from dqn.hash_db import HashDB
 from typing import Optional
@@ -65,6 +65,9 @@ def route_setup(app, RL_model):
     @app.get('/check_done_program')
     def check_done_program(item: Item):
         message, infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level, item.plan_name)
+
+        info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|{item.plan_name}: {message}|process_time: {infer_time:.3f}s'
+        logging.getLogger(CHECKDONE_LOG).error(info)
 
         # # Logging
         # if message == '':

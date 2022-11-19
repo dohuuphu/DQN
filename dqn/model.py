@@ -20,7 +20,7 @@ from api.route import Item
 from dqn.utils import *
 from dqn.variables import *
 from dqn.environment import SimStudent
-from dqn.database.core import MongoDb, Format_reader, User, Data_formater
+from dqn.database import MongoDb, Format_reader, User, Data_formater
 
 
 class Agent(keras.Model):
@@ -142,7 +142,6 @@ class Learner():
                             self.event_copy_weight.set()
                         
                         if self.episode[0] % EPISODE_SAVE == 0:
-                            # print("save model =======")
                             self.model.save(join("weight", self.name, MODEL_SAVE))
                             logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
 
@@ -195,7 +194,7 @@ class Recommend_core():
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
         action = None
-        start = time.time()
+        # start = time.time()
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         # logging.getLogger(RECOMMEND_LOG).info(f'pred action 0: {time.time()-start}')
@@ -353,7 +352,7 @@ class Recommend_core():
                                                 score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
             episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
-            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Before checkdone {time.time()-start}')
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Before checkdone {time.time()-start}')
             # Topic is DONE
             if 0 not in curr_observation:
                 # Render next topic
@@ -381,7 +380,7 @@ class Recommend_core():
                 self.lock.acquire()
                 self.database.update_prev_score(Data_formater(info))
                 self.lock.release()
-            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} After checkdone {time.time()-start}')
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} After checkdone {time.time()-start}')
 
         if plan_done:
             return {inputs.category:"done"}
@@ -398,7 +397,7 @@ class Recommend_core():
         curr_zero_list:list = [i for i in range(len(curr_observation)) if curr_observation[i] == 0.0]
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
         
-        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Before get action {time.time()-start}')
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Before get action {time.time()-start}')
         # Get action
         while True:
             action_index = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
@@ -406,7 +405,7 @@ class Recommend_core():
             # Update new action to prev_action
             prev_action = action_index
             
-            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} getting action {time.time()-start}')
+            logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} getting action {time.time()-start}')
 
             # Select action until get right
             if self.is_suitable_action(curr_zero_list, action_index):
@@ -419,9 +418,9 @@ class Recommend_core():
                                                     action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
 
                     episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
-                    logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Update buffer {time.time()-start}')
+                    logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Update buffer {time.time()-start}')
 
-        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} After get action {time.time()-start}')
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} After get action {time.time()-start}')
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
@@ -432,15 +431,18 @@ class Recommend_core():
                     init_score = init_score,flow_topic = flow_topic)
         
         # self.lock.acquire()
-        try:
-            self.database.write_to_DB(info)
-        except:
-            logging.getLogger(SYSTEM_LOG).error(f'user_id = {inputs.user_id},user_mail = {inputs.user_mail}, subject = {inputs.subject}\ncategory={inputs.category}, level = {inputs.program_level}, plan_name = {inputs.plan_name}\nprev_score = {prev_score}, total_masteries={total_masteries}, topic_masteries = {masteries_of_topic}\naction_index = {action_index}, action_id = {action_id}, topic_name = {curr_topic_name}\ninit_score = {init_score},flow_topic = {flow_topic}')
+        # try:
+        #     self.database.write_to_DB(info)
+        # except:
+            # logging.getLogger(SYSTEM_LOG).error(f'user_id = {inputs.user_id},user_mail = {inputs.user_mail}, subject = {inputs.subject}\ncategory={inputs.category}, level = {inputs.program_level}, plan_name = {inputs.plan_name}\nprev_score = {prev_score}, total_masteries={total_masteries}, topic_masteries = {masteries_of_topic}\naction_index = {action_index}, action_id = {action_id}, topic_name = {curr_topic_name}\ninit_score = {init_score},flow_topic = {flow_topic}')
         # self.lock.release()
         # logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done Write database {time.time()-start}')
 
+        self.database.write_to_DB(info)
+
+
         # gc.collect()
-        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done collect {time.time()-start}')
+        logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Done collect {time.time()-start}')
         return {inputs.category:action_id}
 
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
@@ -513,10 +515,6 @@ class Recommend_core():
 
             self.english_Vocabulary.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                                 reward, item_relayBuffer.next_observation, done])
-
-        if done:
-            print(f'done {category}')
-
 
         self.lock.release()
 

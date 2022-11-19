@@ -30,9 +30,7 @@ def timer(func):
     def time_counter(*args, **kwargs):
         start_time = time.time()
         result = func(*args, **kwargs)
-        end_time = time.time()
-        run_time = end_time - start_time
-        # print("   [-] %s : %2.5f sec" % (f.__name__, end_time - start_time))
+        run_time = time.time() - start_time
         return result, run_time
     return time_counter
 
