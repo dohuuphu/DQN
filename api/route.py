@@ -12,15 +12,21 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from dqn.variables import *
 from dqn.database import MongoDb
 from dqn.insert_data_to_db import DB_Backend
+from typing import Optional
 
 from dqn.variables import CHECKDONE_LOG, RECOMMEND_LOG, SYSTEM_LOG, DONE, INPROCESS
 
+
+class BodyLesson(BaseModel):
+    program: str
+    level: str
 
 class Database_info(BaseModel):
     method:str
     url:str
     key:str
     value:str
+    body: BodyLesson
 
 class Item(BaseModel):
     user_id:str
@@ -75,15 +81,15 @@ def route_setup_database(app, database:MongoDb):
     @app.post('/update_database')
     async def udpate_database(db_info:Database_info):
         # Get data from backend and preprocess
-        lesson_from_api = DB_Backend(method=db_info.method, url=db_info.url, header={db_info.key:db_info.value})
-        data = lesson_from_api.normalize_input()
+        lesson_from_api = DB_Backend(method=db_info.method, url=db_info.url, header={db_info.key:db_info.value}, json = db_info.body)
+        data = lesson_from_api.modify_current_db()
         
         # Drop old collection
-        database.content_db.drop()
+        # database.content_db.drop()
         
         # Create new collection and add data from backend
-        database.content_db = database.mydb[COLLECTION_LESSON]
-        database.content_db.insert_one(data)
+        # database.content_db = database.mydb[COLLECTION_LESSON]
+        # database.content_db.insert_one(data)
 
         # Hash_topic_ID
 
