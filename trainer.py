@@ -75,7 +75,7 @@ def train(replay_memory, model, target_model, done, train_summary_writer, episod
 
     
 def main():
-    epsilon = 0.1 # Epsilon-greedy algorithm in initialized at 1 meaning every step is random at the start
+    epsilon = 1 # Epsilon-greedy algorithm in initialized at 1 meaning every step is random at the start
     max_epsilon = 1 # You can't explore more than 100% of the time
     min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
     decay = 0.01
