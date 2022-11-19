@@ -23,7 +23,9 @@ class DB_Backend():
         self.subject = self.subject_level[0]
         self.level = self.subject_level[1]
         self.respone = requests.request(method, url, headers=header, json={"program":json.program, "level": json.level})
-        
+    #get category, topic and lesson from DB backend
+    # return category_1:{topic_1:{lesson_1:1,... lesson_n:1},
+    #          topic_n:{lesson_k:1,...}        }   ,...
     def normalize_input(self):
         response_json = json.loads(self.respone.text)
         df = pd.DataFrame(response_json)
@@ -42,10 +44,10 @@ class DB_Backend():
                 list_lp[str(df_temp[i][0])]=1
                 print(str(df_temp[i][3]),topic)
                 lesson[str(df_temp[i][3])].update({str(topic): list_lp})
-        print(lesson)
+        # print(lesson)
             
         return lesson
-    
+    #Re-update current_db with new data
     def modify_current_db(self):
         modify_db = self.normalize_input()
         self.current_DB.mycol.update_many({
