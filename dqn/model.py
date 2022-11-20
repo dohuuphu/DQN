@@ -71,7 +71,7 @@ class Learner():
             self.target_model = keras.models.load_model(self.path_model)
 
         # Copy weight to agent
-        self.agent.set_weights(self.model.get_weights())
+        # self.agent.set_weights(self.model.get_weights())
 
         self.replay_memory:deque = replay_memory
 
@@ -143,8 +143,6 @@ class Learner():
                     except:
                         logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {self.step_training[0]}')
 
-
-
                     # Update weight
                     
                     if self.step_training[0] - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
@@ -174,6 +172,8 @@ class Subject_core():
             self.step = item_cache.step
             self.episode = item_cache.episode
             self.replay_memory = item_cache.relay_buffer
+        
+        self.reward_per_episode = 0
 
         self.env = SimStudent() 
         self.event_copy_weight = threading.Event()  
@@ -213,7 +213,7 @@ class Recommend_core():
         # start = time.time()
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
-        if np.random.rand() <= epsilon and False:
+        if np.random.rand() <= epsilon:
             # Explore
 
             if np.random.choice([1,0],p=[0.3, 0.7]):
@@ -477,75 +477,50 @@ class Recommend_core():
         elif category in ANALYSIS:
             self.math_Analysis.step[0]+=1
 
+
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
-
-        # MATH categorys                                        
+        # MATH categories                                        
         if category in ALGEBRA:
-            reward, done = self.math_Algebra.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-                                                             
-            episode = self.math_Algebra.episode[0]
-            episode += 1 if done else 0 
-            self.math_Algebra.episode.append(episode)
-            
-            self.math_Algebra.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
-
+            category_model = self.math_Algebra
         elif category in GEOMETRY:
-            reward, done = self.math_Geometry.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-            
-            episode = self.math_Geometry.episode[0]
-            episode += 1 if done else 0  
-            self.math_Geometry.episode.append(episode)
-
-            self.math_Geometry.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
-          
+            category_model = self.math_Geometry         
         elif category in PROBABILITY:
-            reward, done = self.math_Probability.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-            
-            episode = self.math_Probability.episode[0]
-            episode += 1 if done else 0 
-            self.math_Probability.episode.append(episode)
-
-            self.math_Probability.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
-
+            category_model = self.math_Probability   
         elif category in ANALYSIS:
-            reward, done = self.math_Analysis.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-            
-            episode = self.math_Analysis.episode[0]
-            episode += 1 if done else 0  
-            self.math_Analysis.episode.append(episode)
+            category_model = self.math_Analysis   
 
-            self.math_Analysis.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
-        
-        # ENGLISH categorys
+        # ENGLISH categories
         elif category in GRAMMAR:
-            reward, done = self.english_Grammar.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-            
-            episode = self.english_Grammar.episode[0]
-            episode += 1 if done else 0  
-            self.english_Grammar.episode.append(episode)
-
-            self.english_Grammar.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
-            
+            category_model = self.english_Grammar   
         elif category in VOVABULARY:
-            reward, done = self.english_Vocabulary.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                            num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-            
-            episode = self.english_Vocabulary.episode[0]
-            episode += 1 if done else 0  
-            self.english_Vocabulary.episode.append(episode)
+            category_model = self.english_Vocabulary   
+        
+        # Update buffer with thread-safety
+        return self.process_update_buffer(category_model=category_model, item_relayBuffer=item_relayBuffer)
 
-            self.english_Vocabulary.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                                reward, item_relayBuffer.next_observation, done])
+    def process_update_buffer(self, category_model:Subject_core, item_relayBuffer:Item_relayBuffer):
+        
+        reward, done = category_model.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+        self.lock.acquire()
+
+        category_model.reward_per_episode+=reward                                    
+        episode = category_model.episode[0]
+        if done:
+            episode += 1
+
+            # Write total reward in a episode to tensorboard
+            with category_model.learner.train_summary_writer.as_default():
+                tf.summary.scalar('reward', category_model.reward_per_episode, step=episode)
+            
+            # Reset total reward after done episode
+            category_model.reward_per_episode = 0
+
+        category_model.episode.append(episode)
+        
+        category_model.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                            reward, item_relayBuffer.next_observation, done])
+        self.lock.release()
 
         return episode
 
