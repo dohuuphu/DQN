@@ -8,13 +8,11 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 
-from os.path import join, dirname, abspath
+from os.path import join, dirname, abspath, isdir
 from tensorflow import keras
 from collections import deque
 from threading import Lock, Event
 from concurrent.futures import ThreadPoolExecutor
-
-sys.path.append('./dqn')
 
 from api.route import Item
 from dqn.utils import *
@@ -52,17 +50,28 @@ class Agent(keras.Model):
             pass
 
 class Learner():
-    def __init__(self, name, agent, event_copy_weight, learning_rate, replay_memory, episode):
+    def __init__(self, name, agent, event_copy_weight, learning_rate, replay_memory, episode, step):
         self.name = name
         self.agent = agent
         self.lock = Lock()
-        self.event_copy_weight:Event = event_copy_weight
+        self.step_training = step
         self.episode = episode
-        self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-        self.target_model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
 
-        self.model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
-        self.target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+        self.event_copy_weight:Event = event_copy_weight
+        self.path_model = join("weight", self.name, MODEL_SAVE)
+
+        if not isdir(self.path_model):
+            self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+            self.target_model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+
+            self.model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+            self.target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+        else:
+            self.model = keras.models.load_model(self.path_model)
+            self.target_model = keras.models.load_model(self.path_model)
+
+        # Copy weight to agent
+        self.agent.set_weights(self.model.get_weights())
 
         self.replay_memory:deque = replay_memory
 
@@ -72,78 +81,84 @@ class Learner():
         
         learning_rate = 0.7 # Learning rate
         discount_factor = 0.618
+        temp_step = 0
+        temp_episode = 0
+        temp_update_target = 0
 
         while True:
-            if self.episode[0] != 0:
-                if self.episode[0] % NUM_EPISODE_TRAIN == 0 and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
-                # if self.episode[0] != 0 and self.episode[0] % NUM_EPISODE_TRAIN == 0:
-                    # if a % 1000000 == 0:
-                        # print(self.name, self.replay_memory)
-                    # if len(self.replay_memory) >  MIN_REPLAY_SIZE:
-                        logging.getLogger(SYSTEM_LOG).info(f'{self.name} at {self.episode[0]} -> Start trainning')
+            if self.step_training[0] != 0:
+                if self.step_training[0] - temp_step >= STEP_TRAIN and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
+                    logging.getLogger(SYSTEM_LOG).info(f'{self.name} at {self.episode[0]} -> Start trainning')
+                    temp_step = self.step_training[0]
+                    
+                    # Get random data and remove them in replay_memory
+                    mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
+
+                    current_states = []
+                    current_topicID = []
+                    new_states = []
+                    for transition in mini_batch:
+                        state:np.ndarray = transition[0]
+                        current_states.append(state.reshape([1, state.shape[0]]))
+
+                        topic_number:int = transition[1]
+                        current_topicID.append(topic_number)
+
+                        new_state:np.ndarray = transition[4]
+                        new_states.append(new_state.reshape([1, new_state.shape[0]]))
+                    
+                    current_states = np.vstack(current_states)
+                    new_states = np.vstack(new_states)
+
+                    current_qs_list = self.model((current_states, np.array(current_topicID))).numpy()
+                    future_qs_list = self.target_model((new_states, np.array(current_topicID))).numpy()
+
+                    X = []
+                    Y = []
+                    T = []
+                    for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
+                        if not done:
+                            max_future_q = reward + discount_factor * np.max(future_qs_list[index])
+                        else:
+                            max_future_q = reward
+
+                        current_qs = current_qs_list[index]
+                        current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
+
+                        X.append(observation)
+                        Y.append(current_qs)
+                        T.append(topic_number)
+                        
+                    his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
+
+                    with self.train_summary_writer.as_default():
+                        tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
+                        tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode[0])
+                    
+                    # Copy weight to Agent
+                    self.event_copy_weight.clear()
+                    self.agent.set_weights(weight)
+                    self.event_copy_weight.set()
+
+                    # Update weight
+                    
+                    if self.step_training[0] - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
+                        # Log
+                        logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
+                        weight = self.model.get_weights()
+                        self.target_model.set_weights(weight)
+                        temp_update_target = self.step_training[0] 
+                    
+                    if self.episode[0] - temp_episode >= EPISODE_SAVE:
+                        logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
+                        self.model.save(self.path_model)
+                        temp_episode = self.episode[0]
 
                         
-                        # Get random data and remove them in replay_memory
-                        mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
-
-                        current_states = []
-                        current_topicID = []
-                        new_states = []
-                        for transition in mini_batch:
-                            state:np.ndarray = transition[0]
-                            current_states.append(state.reshape([1, state.shape[0]]))
-
-                            topic_number:int = transition[1]
-                            current_topicID.append(topic_number)
-
-                            new_state:np.ndarray = transition[4]
-                            new_states.append(new_state.reshape([1, new_state.shape[0]]))
-                        
-                        current_states = np.vstack(current_states)
-                        new_states = np.vstack(new_states)
-
-                        current_qs_list = self.model((current_states, np.array(current_topicID))).numpy()
-                        future_qs_list = self.target_model((new_states, np.array(current_topicID))).numpy()
-
-                        X = []
-                        Y = []
-                        T = []
-                        for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
-                            if not done:
-                                max_future_q = reward + discount_factor * np.max(future_qs_list[index])
-                            else:
-                                max_future_q = reward
-
-                            current_qs = current_qs_list[index]
-                            current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
-
-                            X.append(observation)
-                            Y.append(current_qs)
-                            T.append(topic_number)
-                            
-                        his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
-
-                        with self.train_summary_writer.as_default():
-                            tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
-                            tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode[0])
-                        
-
-                        # Update weight
-                        
-                        if self.episode[0] % STEP_UPDATE_TARGETR_MODEL == 0:
-                            # Log
-                            logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
-                            weight = self.model.get_weights()
-                            self.target_model.set_weights(weight)
-
-                            # Copy weight to Agent
-                            self.event_copy_weight.clear()
-                            self.agent.set_weights(weight)
-                            self.event_copy_weight.set()
-                        
-                        if self.episode[0] % EPISODE_SAVE == 0:
-                            self.model.save(join("weight", self.name, MODEL_SAVE))
-                            logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
+                    
+                    # if self.episode[0] % EPISODE_SAVE == 0:
+                        # self.model.save(self.path_model)
+                        # logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
 
                         
                         # K.clear_session()
@@ -152,10 +167,13 @@ class Subject_core():
     def __init__(self, name:list, learning_rate:float, item_cache:Item_cache) -> None:
         # Get cache value of relay_buffer and episode
         if not bool(item_cache): # cache is empty
+            self.step = deque(maxlen=1)
+            self.step.append(0)
             self.episode = deque(maxlen=1)
             self.episode.append(0)
             self.replay_memory = deque(maxlen=1_500)
         else:
+            self.step = item_cache.step
             self.episode = item_cache.episode
             self.replay_memory = item_cache.relay_buffer
 
@@ -163,7 +181,7 @@ class Subject_core():
         self.event_copy_weight = threading.Event()  
         self.event_copy_weight.set()
         self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-        self.learner = Learner(name[0], self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode) 
+        self.learner = Learner(name[0], self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode, self.step) 
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
@@ -412,17 +430,18 @@ class Recommend_core():
             logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} getting action {time.time()-start}')
 
             # Select action until get right
+            
+            # Update negative action (action_value = 1) to relay buffer 
+            if data_readed.prev_action is not None:
+                self.update_step(inputs.category)
+                item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
+                                                action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
+
+                episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+                logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Update buffer {time.time()-start}')
+            
             if self.is_suitable_action(curr_zero_list, action_index):
                 break
-            else:
-                # Update negative action (action_value = 1) to relay buffer 
-                if data_readed.prev_action is not None:
-
-                    item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
-                                                    action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
-
-                    episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
-                    logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Update buffer {time.time()-start}')
 
         logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} After get action {time.time()-start}')
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
@@ -437,17 +456,29 @@ class Recommend_core():
         # self.lock.acquire()
         try:
             self.database.write_to_DB(info)
-        except:
+        except OSError as e:
+            print(e)
             logging.getLogger(SYSTEM_LOG).error(f'user_id = {inputs.user_id},user_mail = {inputs.user_mail}, subject = {inputs.subject}\ncategory={inputs.category}, level = {inputs.program_level}, plan_name = {inputs.plan_name}\nprev_score = {prev_score}, total_masteries={total_masteries}, topic_masteries = {masteries_of_topic}\naction_index = {action_index}, action_id = {action_id}, topic_name = {curr_topic_name}\ninit_score = {init_score},flow_topic = {flow_topic}')
         # self.lock.release()
         # logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail} Done Write database {time.time()-start}')
 
-        # self.database.write_to_DB(info)
-
-
         # gc.collect()
         logging.getLogger(RECOMMEND_LOG).info(f'{inputs.user_mail}_{inputs.category} Done collect {time.time()-start}')
         return {inputs.category:action_id}
+
+    def update_step(self, category:str):
+        if category in GRAMMAR:
+            self.english_Grammar.step[0]+=1
+        elif category in VOVABULARY:
+            self.english_Vocabulary.step[0]+=1
+        elif category in ALGEBRA:
+            self.math_Algebra.step[0]+=1
+        elif category in GEOMETRY:
+            self.math_Geometry.step[0]+=1
+        elif category in PROBABILITY:
+            self.math_Probability.step[0]+=1
+        elif category in ANALYSIS:
+            self.math_Analysis.step[0]+=1
 
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
         self.lock.acquire()
