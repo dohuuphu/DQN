@@ -32,8 +32,8 @@ class User():
         self.topic_name = topic_name
         self.total_masteries = total_masteries  # All LDP in mocktest, update value after everystep
         self.topic_masteries = topic_masteries  # Map LDP to topic_pool, fixed init value 
-        self.action_index = action_index
-        self.action_id = action_id
+        self.action_index = int(action_index) if action_index is not None else None
+        self.action_id = int(action_id) if action_id is not None else None
         self.prev_score = prev_score
 
         self.pool = {k: v for k, v in self.total_masteries.items() if v == 0}   # list zeros in mocktest
@@ -73,7 +73,7 @@ class Data_formater():
     def total_topic_info(self):
         total_topic = {}
         for topic in self.user.flow_topic:
-            masteries = None
+            masteries = {}
             total_topic.update({topic:masteries})
         
         return total_topic
@@ -147,7 +147,7 @@ class MongoDb:
     def is_newUser(self, user_id:int)->bool:
         num_doc = self.user_db.count_documents({"user_id":user_id})
         if num_doc  == 0:
-            logging.getLogger(SYSTEM_LOG).info(f"New user {user_id} ")
+            # logging.getLogger(SYSTEM_LOG).info(f"New user {user_id} ")
             return True
 
         return False
@@ -210,7 +210,7 @@ class MongoDb:
             topic_masteries:dict = self.content_data[subject][level][category][topic_name].copy()
             for lesson_id in total_masteries:
                 if lesson_id in topic_masteries:
-                    topic_masteries[lesson_id] = float(total_masteries[lesson_id]) # Update masteries from total to topic
+                    topic_masteries[lesson_id] = int(total_masteries[lesson_id]) # Update masteries from total to topic
             
 
         except OSError as e:
@@ -312,13 +312,11 @@ class MongoDb:
 
         user_indentify = {'user_id': data.user.id }
 
-        if self.is_newUser(data.user.id): 
+        if self.is_newUser(data.user.id):
             self.user_db.insert_one(data.user_info())
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newUser {time.time()-start}')
 
             # Update total_topic_value
             self.update_total_topic(data=data)
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newUser_end {time.time()-start}')
 
         elif self.is_newcategory(data.user):
             prefix = 'category'
@@ -337,24 +335,17 @@ class MongoDb:
         elif self.is_newPath(data.user):
             prefix = f'category.{data.user.category}.{data.user.level}'
             self.user_db.update_one(user_indentify, {'$set':data.path_info(prefix)})
-
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newPath {time.time()-start}')
             
             # Update total_topic_value
             self.update_total_topic(data=data)
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newPath_end {time.time()-start}')
-
 
         elif self.is_newTopic(data.user):
             prefix = f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.flow'
             self.user_db.update_one(user_indentify, {'$set':data.topic_info(prefix)})
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} is_newTopic {time.time()-start}')
 
         else:
             self.update_prev_score(data)
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} update_prev_score {time.time()-start}')
             self.update_step(data)
-            logging.getLogger(RECOMMEND_LOG).info(f'{data.user.mail} update_step {time.time()-start}')
 
            
     def update_step(self, data:Data_formater):

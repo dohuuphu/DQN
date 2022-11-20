@@ -44,13 +44,17 @@ def route_setup(app, RL_model):
 
     def execute_api(item: Item):
 
+        info = f'IN_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}|prev_score: {item.score}| masteries: {item.masteries}'
+        logging.getLogger(RECOMMEND_LOG).info(info)
         try:
-            result, infer_time = RL_model.get_learning_point(item)
+            (result, mssg), infer_time = RL_model.get_learning_point(item)
         except OSError as e:
             result = 'error'
         
         # Logging
-        info = f'request_INFO: {item.user_mail}_{item.subject}_{item.program_level}|prev_score: {item.score}| masteries: {item.masteries}\n\t\t\t\t\t\t\t\tresult{result}\n\t\t\t\t\t\t\t\tprocess_time: {infer_time:.3f}s\n===============\n'
+        endline = f'='*80
+        tab = f'\t'*8
+        info = f"OUT_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}|prev_score: {item.score}| masteries: {item.masteries}\n{mssg}{tab}result {result}\n{tab}process_time: {infer_time:.3f}s\n{endline}\n"
         logging.getLogger(RECOMMEND_LOG).info(info)
 
 
@@ -68,14 +72,6 @@ def route_setup(app, RL_model):
 
         info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|{item.plan_name}: {message}|process_time: {infer_time:.3f}s'
         logging.getLogger(CHECKDONE_LOG).error(info)
-
-        # # Logging
-        # if message == '':
-        #     info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|is_done: {is_done}|process_time: {infer_time:.3f}s'
-        #     logging.getLogger(CHECKDONE_LOG).info(info)
-        # else:
-        #     info = f'user_INFO: {item.user_mail}_{item.subject}_{str(item.program_level)}|{item.plan_name}: {message}|process_time: {infer_time:.3f}s'
-        #     logging.getLogger(CHECKDONE_LOG).error(info)
 
         return APIResponse.json_format(message)
 
