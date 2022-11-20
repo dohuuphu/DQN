@@ -210,12 +210,12 @@ class Recommend_core():
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
         action = None
-        # start = time.time()
+        model_predict = True
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         if np.random.rand() <= epsilon:
             # Explore
-
+            model_predict = False
             if np.random.choice([1,0],p=[0.3, 0.7]):
                 action = random.randint(0, len(observation) - 1)
             else:
@@ -251,11 +251,12 @@ class Recommend_core():
 
             # Random action after explore 
             if prev_action == action:
+                model_predict = False
                 action = random.choice(zero_list)
         
         # K.clear_session()
             
-        return action 
+        return action, model_predict
 
     def arrange_usage_category(self, item:Item)->list:
         '''
@@ -420,12 +421,12 @@ class Recommend_core():
 
         # Get action
         while True:
-            action_index = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
+            action_index, model_predict_flag = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
 
             # Update new action to prev_action
             prev_action = action_index
             
-            log_mssg += f'Category_{inputs.category} Get action "{action_index}" {(time.time()-start):.3f}\n'
+            log_mssg += f'Category_{inputs.category} Get action "{action_index}" (real:{model_predict_flag}) {(time.time()-start):.3f}\n'
 
             # Select action until get right
             
