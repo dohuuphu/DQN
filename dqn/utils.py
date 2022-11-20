@@ -20,7 +20,8 @@ class Item_relayBuffer:
         self.num_items_inPool:int = num_items_inPool
 
 class Item_cache():
-   def __init__(self, episode, relay_buffer) -> None:
+   def __init__(self, step, episode, relay_buffer) -> None:
+      self.step = step
       self.episode = episode
       self.relay_buffer = relay_buffer
 
