@@ -439,25 +439,27 @@ class MongoDb:
         # except:
         #     message =  'Learning path is not exist'
         #     return False, message
+            try:
+                result = {}
+                activate_mocktests:dict = self.get_activate_mocktests_ofUser(user_id, level, plan_name)
+                done_percent = 0
+                list_status = []
+                for category in activate_mocktests:
+                    
 
-        result = {}
-        activate_mocktests:dict = self.get_activate_mocktests_ofUser(user_id, level, plan_name)
-        done_percent = 0
-        list_status = []
-        for category in activate_mocktests:
-            
-
-            total_masteries_value:list = list(activate_mocktests[category]['total_masteries'].values())
-            num_ones = total_masteries_value.count(1.0)
-            percent_category = float(num_ones/len(total_masteries_value))*100
-            done_percent += percent_category
-        
-            result.update({category : {"status": activate_mocktests[category]['status'],
-                                        "percent" : percent_category}})
-            
-        done_percent = done_percent/len(activate_mocktests)
-        result.update({"Learning_goal": f'{done_percent}%'})
-        return result
+                    total_masteries_value:list = list(activate_mocktests[category]['total_masteries'].values())
+                    num_ones = total_masteries_value.count(1.0)
+                    percent_category = float(num_ones/len(total_masteries_value))*100
+                    done_percent += percent_category
+                
+                    result.update({category : {"status": activate_mocktests[category]['status'],
+                                                "percent" : percent_category}})
+                    
+                done_percent = int(done_percent/len(activate_mocktests))
+                result.update({"Learning_goal": f'{done_percent}%'})
+            except:
+                result = "User does not exist!!!"
+            return result
                     
 
 
