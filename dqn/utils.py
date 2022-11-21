@@ -20,7 +20,8 @@ class Item_relayBuffer:
         self.num_items_inPool:int = num_items_inPool
 
 class Item_cache():
-   def __init__(self, episode, relay_buffer) -> None:
+   def __init__(self, step, episode, relay_buffer) -> None:
+      self.step = step
       self.episode = episode
       self.relay_buffer = relay_buffer
 
@@ -30,9 +31,7 @@ def timer(func):
     def time_counter(*args, **kwargs):
         start_time = time.time()
         result = func(*args, **kwargs)
-        end_time = time.time()
-        run_time = end_time - start_time
-        # print("   [-] %s : %2.5f sec" % (f.__name__, end_time - start_time))
+        run_time = time.time() - start_time
         return result, run_time
     return time_counter
 

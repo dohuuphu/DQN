@@ -3,6 +3,7 @@
 # Model
 STATE_ACTION_SPACE = 80
 MAX_STEP_EPISODE = 200
+STEP_TRAIN = 4
 STEP_UPDATE_TARGETR_MODEL = 500
 NUM_EPISODE_TO_SAVE_MODEL = 100
 REWARD_LENGTH = True
@@ -18,7 +19,7 @@ BATCH_SIZE = 16 #128
 MIN_REPLAY_SIZE = 32#500 
 train_episodes = 10000
 
-NUM_EPISODE_TRAIN = 2
+
 RETRAIN = False
 MODEL_SAVE = F'action_{STATE_ACTION_SPACE}'
 MODEL_RETRAIN =  '/home/hoangtv/phudh/DQN/weight/action_80_relation_length'
@@ -62,6 +63,8 @@ ALGEBRA = ["Algebra"]
 GEOMETRY = ["Geometry"]
 PROBABILITY= ["Probability_statistics"]
 ANALYSIS = ["Analysis"]
+
+TOTAL_SUBJECT=[MATH, ENGLISH]
 
 
 # Cache file
