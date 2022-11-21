@@ -1,9 +1,9 @@
 import sys
 import time
+import atexit
 import random
 import logging
 import threading
-import asyncio
 import numpy as np
 import tensorflow as tf
 import keras.backend as K
@@ -13,6 +13,7 @@ from tensorflow import keras
 from collections import deque
 from threading import Lock, Event
 from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Process, Manager, Queue, Value
 
 from api.route import Item
 from dqn.utils import *
@@ -50,14 +51,11 @@ class Agent(keras.Model):
             pass
 
 class Learner():
-    def __init__(self, name, agent, event_copy_weight, learning_rate, replay_memory, episode, step):
+    def __init__(self, name, learning_rate):
         self.name = name
-        self.agent = agent
-        self.lock = Lock()
-        self.step_training = step
-        self.episode = episode
 
-        self.event_copy_weight:Event = event_copy_weight
+        self.lock = Lock()
+
         self.path_model = join("weight", self.name, MODEL_SAVE)
 
         if not isdir(self.path_model):
@@ -73,11 +71,42 @@ class Learner():
         # Copy weight to agent
         # self.agent.set_weights(self.model.get_weights())
 
-        self.replay_memory:deque = replay_memory
+        # self.replay_memory:deque = self.load_relayBuffer()
 
         self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE))
+
+        
+
+    # def load_relayBuffer(self):
+    #     cache = load_pkl(self.get_cachePath())
+    #     if cache is not None:
+    #         return cache
+    #     else:
+    #         return deque(maxlen=1500)
+
+    # def cache_relayBuffer(self):
+    #     save_pkl(self.replay_memory, self.get_cachePath())
     
-    def train(self):
+    def get_cachePath(self):
+        # MATH categories
+        if self.name in ALGEBRA:
+            cache_path = ALGEBRA_R_BUFFER
+        elif self.name in GEOMETRY:
+            cache_path = GEOMETRY_R_BUFFER
+        elif self.name in PROBABILITY:
+            cache_path = PROBABILITY_R_BUFFER
+        elif self.name in ANALYSIS:
+            cache_path = ANALYSIS_R_BUFFER
+
+        # ENGLISH categories
+        elif self.name in GRAMMAR:
+            cache_path = GRAMMAR_R_BUFFER
+        elif self.name in VOVABULARY:
+            cache_path = VOCABULARY_R_BUFFER
+        
+        return cache_path
+         
+    def train(self, step_training:Value, episode:Value, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue, weight:Queue):
         
         learning_rate = 0.7 # Learning rate
         discount_factor = 0.618
@@ -85,11 +114,33 @@ class Learner():
         temp_episode = 0
         temp_update_target = 0
 
+        cache_path = self.get_cachePath()
+
+        def load_relayBuffer():
+            cache = load_pkl(cache_path)
+            if cache is not None:
+                return cache
+            else:
+                return deque(maxlen=1500)
+
+        replay_memory:deque = load_relayBuffer()
+
+        def cache_relayBuffer():
+            save_pkl(replay_memory, cache_path)
+
+        atexit.register(cache_relayBuffer)
+
         while True:
-            if self.step_training[0] != 0:
-                if self.step_training[0] - temp_step >= STEP_TRAIN and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
-                    temp_step = self.step_training[0]
-                    logging.getLogger(SYSTEM_LOG).info(f'{self.name} at step {self.step_training[0]} -> Start trainning')
+            # Get data from Queue of main process
+            try:
+                self.replay_memory.append([observation.get(), topic_id.get(), action_index.get(), reward.get(), next_observation.get(), done.get()])
+            except:
+                pass
+
+            if step_training.value != 0:
+                if step_training.value - temp_step >= STEP_TRAIN and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
+                    temp_step = step_training.value
+                    logging.getLogger(SYSTEM_LOG).info(f'{self.name} at step {step_training.value} -> Start trainning')
                     
                     # Get random data and remove them in replay_memory
                     mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
@@ -132,79 +183,120 @@ class Learner():
                     his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
 
                     with self.train_summary_writer.as_default():
-                        tf.summary.scalar('loss', his.history['loss'][0], step=self.episode[0])
-                        tf.summary.scalar('acc', his.history['accuracy'][0], step=self.episode[0])
+                        tf.summary.scalar('loss', his.history['loss'][0], step=episode.value)
+                        tf.summary.scalar('acc', his.history['accuracy'][0], step=episode.value)
                     
                     # Copy weight to Agent
                     try:
-                        self.event_copy_weight.clear()
-                        self.agent.set_weights(self.model.get_weights())
-                        self.event_copy_weight.set()
+                        weight.put(self.model.get_weights())
                     except:
-                        logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {self.step_training[0]}')
+                        logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {step_training.value}')
 
                     # Update weight
                     
-                    if self.step_training[0] - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
+                    if step_training.value - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
                         # Log
-                        logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight {self.name} model at {self.episode[0]} episode !!!')
+                        logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight of taget_model {self.name} model at {episode.value} episode !!!')
                         weight = self.model.get_weights()
                         self.target_model.set_weights(weight)
-                        temp_update_target = self.step_training[0] 
+                        temp_update_target = step_training.value 
                     
-                    if self.episode[0] - temp_episode >= EPISODE_SAVE:
-                        logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {self.episode[0]} episode !!!')
+                    if episode.value - temp_episode >= EPISODE_SAVE:
+                        logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {episode.value} episode !!!')
                         self.model.save(self.path_model)
-                        temp_episode = self.episode[0]
+                        temp_episode = episode.value
                         
                         # K.clear_session()
 
 class Subject_core():
-    def __init__(self, name:list, learning_rate:float, item_cache:Item_cache) -> None:
-        # Get cache value of relay_buffer and episode
-        if not bool(item_cache): # cache is empty
-            self.step = deque(maxlen=1)
-            self.step.append(0)
-            self.episode = deque(maxlen=1)
-            self.episode.append(0)
-            self.replay_memory = deque(maxlen=1_500)
-        else:
-            self.step = item_cache.step
-            self.episode = item_cache.episode
-            self.replay_memory = item_cache.relay_buffer
-        
+    def __init__(self, name:list, learning_rate:float) -> None:
         self.reward_per_episode = 0
 
         self.env = SimStudent() 
+        self.items_shared = Item_shared()
         self.event_copy_weight = threading.Event()  
         self.event_copy_weight.set()
         self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-        self.learner = Learner(name[0], self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode, self.step) 
+        self.learner = Learner(name[0], learning_rate) 
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
         self.lock = Lock()
 
         self.database = MongoDb()
-
-        threads = [] 
-        self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate, item_cache=load_pkl(GRAMMAR_R_BUFFER))
-        self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate, item_cache=load_pkl(VOCABULARY_R_BUFFER))
-        self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate, item_cache=load_pkl(ALGEBRA_R_BUFFER))
-        self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, item_cache=load_pkl(GEOMETRY_R_BUFFER))
-        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, item_cache=load_pkl(PROBABILITY_R_BUFFER))
-        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, item_cache=load_pkl(ANALYSIS_R_BUFFER))
-
-        threads.append(threading.Thread(target=self.english_Grammar.learner.train))
-        threads.append(threading.Thread(target=self.english_Vocabulary.learner.train))
-        threads.append(threading.Thread(target=self.math_Algebra.learner.train))
-        threads.append(threading.Thread(target=self.math_Geometry.learner.train))
-        threads.append(threading.Thread(target=self.math_Probability.learner.train))
-        threads.append(threading.Thread(target=self.math_Analysis.learner.train))
         
-        for thread in threads:
-            thread.start()
+
+        procs = [] 
+        self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate)
+        self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate)
+        self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate)
+        self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate)
+        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate)
+        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate)
+
+        
+        procs.append(Process(target=self.english_Grammar.learner.train, args=(self.english_Grammar.items_shared.step,
+                                                                                self.english_Grammar.items_shared.episode,
+                                                                                self.english_Grammar.items_shared.observation,
+                                                                                self.english_Grammar.items_shared.topic_id,
+                                                                                self.english_Grammar.items_shared.action_index,
+                                                                                self.english_Grammar.items_shared.reward,
+                                                                                self.english_Grammar.items_shared.next_observation,
+                                                                                self.english_Grammar.items_shared.done,
+                                                                                self.english_Grammar.items_shared.weight)))
+        procs.append(Process(target=self.english_Vocabulary.learner.train, args=(self.english_Vocabulary.items_shared.step,
+                                                                                self.english_Vocabulary.items_shared.episode,
+                                                                                self.english_Vocabulary.items_shared.observation,
+                                                                                self.english_Vocabulary.items_shared.topic_id,
+                                                                                self.english_Vocabulary.items_shared.action_index,
+                                                                                self.english_Vocabulary.items_shared.reward,
+                                                                                self.english_Vocabulary.items_shared.next_observation,
+                                                                                self.english_Vocabulary.items_shared.done,
+                                                                                self.english_Vocabulary.items_shared.weight)))
+        procs.append(Process(target=self.math_Algebra.learner.train, args=(self.math_Algebra.items_shared.step,
+                                                                                self.math_Algebra.items_shared.episode,
+                                                                                self.math_Algebra.items_shared.observation,
+                                                                                self.math_Algebra.items_shared.topic_id,
+                                                                                self.math_Algebra.items_shared.action_index,
+                                                                                self.math_Algebra.items_shared.reward,
+                                                                                self.math_Algebra.items_shared.next_observation,
+                                                                                self.math_Algebra.items_shared.done,
+                                                                                self.math_Algebra.items_shared.weight)))
+        procs.append(Process(target=self.math_Geometry.learner.train, args=(self.math_Geometry.items_shared.step,
+                                                                                self.math_Geometry.items_shared.episode,
+                                                                                self.math_Geometry.items_shared.observation,
+                                                                                self.math_Geometry.items_shared.topic_id,
+                                                                                self.math_Geometry.items_shared.action_index,
+                                                                                self.math_Geometry.items_shared.reward,
+                                                                                self.math_Geometry.items_shared.next_observation,
+                                                                                self.math_Geometry.items_shared.done,
+                                                                                self.math_Geometry.items_shared.weight)))
+        procs.append(Process(target=self.math_Probability.learner.train, args=(self.math_Probability.items_shared.step,
+                                                                                self.math_Probability.items_shared.episode,
+                                                                                self.math_Probability.items_shared.observation,
+                                                                                self.math_Probability.items_shared.topic_id,
+                                                                                self.math_Probability.items_shared.action_index,
+                                                                                self.math_Probability.items_shared.reward,
+                                                                                self.math_Probability.items_shared.next_observation,
+                                                                                self.math_Probability.items_shared.done,
+                                                                                self.math_Probability.items_shared.weight)))
+        procs.append(Process(target=self.math_Analysis.learner.train, args=(self.math_Analysis.items_shared.step,
+                                                                                self.math_Analysis.items_shared.episode,
+                                                                                self.math_Analysis.items_shared.observation,
+                                                                                self.math_Analysis.items_shared.topic_id,
+                                                                                self.math_Analysis.items_shared.action_index,
+                                                                                self.math_Analysis.items_shared.reward,
+                                                                                self.math_Analysis.items_shared.next_observation,
+                                                                                self.math_Analysis.items_shared.done,
+                                                                                self.math_Analysis.items_shared.weight)))
+        
+        for proc in procs:
+            proc.start()
     
+
+    def get_prediction(self):
+        pass
+
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
@@ -213,10 +305,10 @@ class Recommend_core():
         model_predict = True
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
-        if np.random.rand() <= epsilon:
+        if np.random.rand() <= epsilon and False:
             # Explore
             model_predict = False
-            if np.random.choice([1,0],p=[0.3, 0.7]):
+            if np.random.choice([1,0],p=[0.3, 0.7]):    # Random value 1 or 0
                 action = random.randint(0, len(observation) - 1)
             else:
                 index = random.randint(0, len(zero_list) - 1)
@@ -227,24 +319,13 @@ class Recommend_core():
             topic_number = int(topic_number)
             observation:np.ndarray = np.array(observation)
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
-            if category in GRAMMAR:
-                self.english_Grammar.event_copy_weight.wait() # wait if learner is setting weight
-                predicted = self.english_Grammar.model((encoded_reshaped, np.array([topic_number])))
-            elif category in VOVABULARY:
-                self.english_Vocabulary.event_copy_weight.wait()
-                predicted = self.english_Vocabulary.model((encoded_reshaped, np.array([topic_number])))
-            elif category in ALGEBRA:
-                self.math_Algebra.event_copy_weight.wait()
-                predicted = self.math_Algebra.model((encoded_reshaped, np.array([topic_number])))
-            elif category in GEOMETRY:
-                self.math_Geometry.event_copy_weight.wait()
-                predicted = self.math_Geometry.model((encoded_reshaped, np.array([topic_number])))
-            elif category in PROBABILITY:
-                self.math_Probability.event_copy_weight.wait()
-                predicted = self.math_Probability.model((encoded_reshaped, np.array([topic_number])))
-            elif category in ANALYSIS:
-                self.math_Analysis.event_copy_weight.wait()
-                predicted = self.math_Analysis.model((encoded_reshaped, np.array([topic_number])))
+
+            # Select model
+            category_model:Subject_core = self.select_model(category)
+
+            self.update_weight(category_model)
+            category_model.event_copy_weight.wait()
+            predicted = category_model.model((encoded_reshaped, np.array([topic_number])))
 
             # Get action 
             action = np.argmax(predicted)
@@ -461,25 +542,71 @@ class Recommend_core():
 
         return {inputs.category:action_id}, log_mssg
 
+    def update_weight(self, category_model:Subject_core):
+        lastest_weight = None
+        while not category_model.items_shared.weight.empty():
+                lastest_weight = category_model.items_shared.weight.get()
+
+        # Update weight                 
+        if lastest_weight is None:
+            category_model.event_copy_weight.clear()
+            try:
+                category_model.model.set_weights(lastest_weight)
+                print("copy weight passed")
+            except:
+                pass
+            category_model.event_copy_weight.set()
+
+
     def update_step(self, category:str):
         '''
             Update step after generate a action
         '''
-        if category in GRAMMAR:
-            self.english_Grammar.step[0]+=1
-        elif category in VOVABULARY:
-            self.english_Vocabulary.step[0]+=1
-        elif category in ALGEBRA:
-            self.math_Algebra.step[0]+=1
-        elif category in GEOMETRY:
-            self.math_Geometry.step[0]+=1
-        elif category in PROBABILITY:
-            self.math_Probability.step[0]+=1
-        elif category in ANALYSIS:
-            self.math_Analysis.step[0]+=1
+        # Select model
+        category_model:Subject_core = self.select_model(category)
+
+        # Update step
+        self.lock.acquire()
+        category_model.items_shared.update_step()
+        self.lock.release()
 
 
-    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:Item):
+    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:str):
+        # Select model
+        category_model:Subject_core = self.select_model(category)
+
+        # Update buffer with thread-safety
+        reward, done = category_model.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
+                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
+        self.lock.acquire()
+
+        category_model.reward_per_episode += reward                                    
+        episode = category_model.items_shared.episode.value
+
+        if done:
+            episode += 1
+
+            # Write total reward in a episode to tensorboard
+            with category_model.learner.train_summary_writer.as_default():
+                tf.summary.scalar('reward', category_model.reward_per_episode, step=episode)
+            
+            # Reset total reward after done episode
+            category_model.reward_per_episode = 0
+
+            # Update new episode value
+            category_model.items_shared.udpate_episode(episode=episode)
+        
+        self.lock.release()
+
+        # Update relay_buffer
+        category_model.items_shared.append_relayBuffer(item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
+                                            reward, item_relayBuffer.next_observation, done)
+        return episode
+
+    def is_suitable_action(self, zero_list:list, action_index:int):
+            return True if action_index in zero_list else False
+
+    def select_model(self, category:str):
         # MATH categories                                        
         if category in ALGEBRA:
             category_model = self.math_Algebra
@@ -494,40 +621,9 @@ class Recommend_core():
         elif category in GRAMMAR:
             category_model = self.english_Grammar   
         elif category in VOVABULARY:
-            category_model = self.english_Vocabulary   
+            category_model = self.english_Vocabulary
         
-        # Update buffer with thread-safety
-        return self.process_update_buffer(category_model=category_model, item_relayBuffer=item_relayBuffer)
-
-    def process_update_buffer(self, category_model:Subject_core, item_relayBuffer:Item_relayBuffer):
-        
-        reward, done = category_model.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
-                                                             num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-        self.lock.acquire()
-
-        category_model.reward_per_episode+=reward                                    
-        episode = category_model.episode[0]
-        if done:
-            episode += 1
-
-            # Write total reward in a episode to tensorboard
-            with category_model.learner.train_summary_writer.as_default():
-                tf.summary.scalar('reward', category_model.reward_per_episode, step=episode)
-            
-            # Reset total reward after done episode
-            category_model.reward_per_episode = 0
-
-        category_model.episode.append(episode)
-        
-        category_model.replay_memory.append([item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
-                                            reward, item_relayBuffer.next_observation, done])
-        self.lock.release()
-
-        return episode
-
-    def is_suitable_action(self, zero_list:list, action_index:int):
-            return True if action_index in zero_list else False
-
+        return category_model
 
     @timer
     def is_done_program(self, user_id:str, subject:str, level:str, plan_name:str):

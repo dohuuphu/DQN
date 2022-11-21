@@ -4,7 +4,7 @@ import functools
 import numpy as np
 import logging
 import pickle
-
+from multiprocessing import Queue, Value
 from dqn.variables import STATE_ACTION_SPACE, SYSTEM_LOG
 
 class Item_relayBuffer:
@@ -19,12 +19,35 @@ class Item_relayBuffer:
         self.score:float = score       # Score of action_index
         self.num_items_inPool:int = num_items_inPool
 
-class Item_cache():
-   def __init__(self, step, episode, relay_buffer) -> None:
-      self.step = step
-      self.episode = episode
-      self.relay_buffer = relay_buffer
+class RelayBuffer_cache():
+    def __init__(self) -> None:
+        self.observation = Queue(maxsize=1500)
+        self.topic_id = Queue(maxsize=1500)
+        self.action_index = Queue(maxsize=1500)
+        self.reward = Queue(maxsize=1500)
+        self.next_observation = Queue(maxsize=1500)
+        self.done = Queue(maxsize=1500)
 
+class Item_shared(RelayBuffer_cache):
+    def __init__(self) -> None:
+        super().__init__()
+        self.step = Value('i',0)
+        self.episode = Value('i',0)
+        self.weight = Queue(maxsize=1500)    
+    
+    def append_relayBuffer(self, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue):
+        self.observation.put(observation)   
+        self.topic_id.put(topic_id)   
+        self.action_index.put(action_index)   
+        self.reward.put(reward)   
+        self.next_observation.put(next_observation)   
+        self.done.put(done)   
+    
+    def udpate_episode(self, episode:int):
+        self.episode.value = episode
+    
+    def update_step(self):
+        self.step.value += 1
 
 def timer(func):
     @functools.wraps(func)
@@ -52,7 +75,7 @@ def load_pkl(path):
       print("  [*] load %s" % path)
       return obj
   except:
-    pass
+    return None
 
 @timer
 def save_npy(obj, path):
