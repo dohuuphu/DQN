@@ -82,12 +82,12 @@ def route_setup_database(app, database:MongoDb):
     async def udpate_database(db_info:Database_info):
         # Get data from backend and preprocess
         lesson_from_api = DB_Backend(method=db_info.method, url=db_info.url, header={db_info.key:db_info.value}, json = db_info.body)
-        lesson_from_api.modify_current_db()
+        status = lesson_from_api.modify_current_db()
         
         # Hash_topic_ID
         hash_db = HashDB()
         hash_db.add_hash_db()
-
+        return APIResponse.json_format(status)
 
     
     # @app.middleware("http")
