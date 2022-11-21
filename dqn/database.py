@@ -455,11 +455,11 @@ class MongoDb:
                     result.update({category : {"status": activate_mocktests[category]['status'],
                                                 "percent" : percent_category}})
                     
-                done_percent = done_percent/len(activate_mocktests)
+                done_percent = int(done_percent/len(activate_mocktests))
                 result.update({"Learning_goal": f'{done_percent}%'})
             except:
                 result = "User does not exist!!!"
-                return result
+            return result
                     
 
 

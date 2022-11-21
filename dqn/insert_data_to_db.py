@@ -49,16 +49,19 @@ class DB_Backend():
         return lesson
     #Re-update current_db with new data
     def modify_current_db(self):
-        modify_db = self.normalize_input()
-        self.current_DB.mycol.update_many({
-        f"{str(self.subject)}": {"$exists": True}
-        },
-        {
-        "$set": {
-            f"{str(self.subject)}.{str(self.level)}": modify_db
-        }
-        })
-
+        try:
+            modify_db = self.normalize_input()
+            self.current_DB.mycol.update_many({
+            f"{str(self.subject)}": {"$exists": True}
+            },
+            {
+            "$set": {
+                f"{str(self.subject)}.{str(self.level)}": modify_db
+            }
+            })
+            return "done"
+        except:
+            return "Error"
 
 
 if __name__ == "__main__":
