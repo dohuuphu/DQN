@@ -22,7 +22,7 @@ from dqn.database import MongoDb, Format_reader, User, Data_formater
 
 
 class Agent(keras.Model):
-    def __init__(self, action_shape, number_topic):
+    def __init__(self, action_shape, topic_embedding):
         super().__init__()
         init = tf.keras.initializers.HeUniform()
 
@@ -30,7 +30,7 @@ class Agent(keras.Model):
         self.dense2 = keras.layers.Dense(512, activation=tf.nn.relu, kernel_initializer=init)
         # self.dense3 = keras.layers.Dense(256, activation=tf.nn.tanh, kernel_initializer=init)
         self.dense4 = keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init)
-        self.topic_embedding = keras.layers.Embedding(number_topic, 32, input_length=1, trainable=False)
+        self.topic_embedding = topic_embedding
 
 
     def call(self, inputs):
@@ -50,7 +50,7 @@ class Agent(keras.Model):
             pass
 
 class Learner():
-    def __init__(self, name, agent, event_copy_weight, learning_rate, replay_memory, episode, step):
+    def __init__(self, name, agent, event_copy_weight, learning_rate, replay_memory, episode, step, topic_embedding):
         self.name = name
         self.agent = agent
         self.lock = Lock()
@@ -61,8 +61,8 @@ class Learner():
         self.path_model = join("weight", self.name, MODEL_SAVE)
 
         if not isdir(self.path_model):
-            self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-            self.target_model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+            self.model = Agent(STATE_ACTION_SPACE, topic_embedding)
+            self.target_model = Agent(STATE_ACTION_SPACE, topic_embedding)
 
             self.model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
             self.target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
@@ -140,8 +140,9 @@ class Learner():
                         self.event_copy_weight.clear()
                         self.agent.set_weights(self.model.get_weights())
                         self.event_copy_weight.set()
+                        logging.getLogger(SYSTEM_LOG).info(f'Compelte copy weight from Model to Agent at step {self.step_training[0]}')
                     except:
-                        logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {self.step_training[0]}')
+                        logging.getLogger(SYSTEM_LOG).error(f'Copy weight from Model to Agent error at step {self.step_training[0]}')
 
                     # Update weight
                     
@@ -160,7 +161,7 @@ class Learner():
                         # K.clear_session()
 
 class Subject_core():
-    def __init__(self, name:list, learning_rate:float, item_cache:Item_cache) -> None:
+    def __init__(self, name:list, learning_rate:float, item_cache:Item_cache, topic_embedding) -> None:
         # Get cache value of relay_buffer and episode
         if not bool(item_cache): # cache is empty
             self.step = deque(maxlen=1)
@@ -178,22 +179,25 @@ class Subject_core():
         self.env = SimStudent() 
         self.event_copy_weight = threading.Event()  
         self.event_copy_weight.set()
-        self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
-        self.learner = Learner(name[0], self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode, self.step) 
+
+        
+        self.model = Agent(STATE_ACTION_SPACE, topic_embedding)
+        self.model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+        self.learner = Learner(name[0], self.model, self.event_copy_weight, learning_rate, self.replay_memory, self.episode, self.step, topic_embedding) 
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
         self.lock = Lock()
 
         self.database = MongoDb()
-
+        topic_embedding = keras.layers.Embedding(NUM_TOPIC, 32, input_length=1, trainable=False)
         threads = [] 
-        self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate, item_cache=load_pkl(GRAMMAR_R_BUFFER))
-        self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate, item_cache=load_pkl(VOCABULARY_R_BUFFER))
-        self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate, item_cache=load_pkl(ALGEBRA_R_BUFFER))
-        self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, item_cache=load_pkl(GEOMETRY_R_BUFFER))
-        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, item_cache=load_pkl(PROBABILITY_R_BUFFER))
-        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, item_cache=load_pkl(ANALYSIS_R_BUFFER))
+        self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate, item_cache=load_pkl(GRAMMAR_R_BUFFER), topic_embedding=topic_embedding)
+        self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate, item_cache=load_pkl(VOCABULARY_R_BUFFER), topic_embedding=topic_embedding)
+        self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate, item_cache=load_pkl(ALGEBRA_R_BUFFER), topic_embedding=topic_embedding)
+        self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, item_cache=load_pkl(GEOMETRY_R_BUFFER), topic_embedding=topic_embedding)
+        self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, item_cache=load_pkl(PROBABILITY_R_BUFFER), topic_embedding=topic_embedding)
+        self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, item_cache=load_pkl(ANALYSIS_R_BUFFER), topic_embedding=topic_embedding)
 
         threads.append(threading.Thread(target=self.english_Grammar.learner.train))
         threads.append(threading.Thread(target=self.english_Vocabulary.learner.train))
