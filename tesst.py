@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue, Value, Lock
+from multiprocessing import Process, Queue, Value, Lock, Manager
 import time
 class test():
     def __init__(self, value) -> None:
@@ -9,13 +9,18 @@ class test():
         self.value+=number
         time.sleep(1)
 
-def f(a:test, num):
-    a = a(num)
+def f(a:test, num, l, work):
 
+    
     while True:
-        a.run(num)
-
-        print(hex(id(a.value)),a.value)
+        time.sleep(1)
+        if work:
+            l.append([1])
+            try:
+                l.remove(-2)
+            except:
+                pass
+        print(work, l)
 
 def get_q(q):
     relay = []
@@ -31,16 +36,18 @@ def get_q(q):
 
 # a = Value('i', 1)
 a = Value('i',0)
+m = Manager()
+l = m.list(range(1))
 
-pro = Process(target=f, args=(test,2))
-pro2 = Process(target=f, args=(test,1))
+pro = Process(target=f, args=(test,1 ,l,True))
+pro2 = Process(target=f, args=(test,1,l, False))
 # pro3 = Process(target=get_q, args=(a,))
 
 pro.start()
 pro2.start()
 # pro3.start()
-# pro.join()
-# pro2.join()
+pro.join()
+pro2.join()
 # pro3.join()
 # print(type(a.value))
 

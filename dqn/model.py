@@ -85,7 +85,7 @@ def get_cachePath(name):
         
         return cache_path 
 
-def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_id_Q:Queue, action_index_Q:Queue, reward_Q:Queue, next_observation_Q:Queue, done_Q:Queue, weight_Q:Queue,embedding):
+def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_id_Q:Queue, action_index_Q:Queue, reward_Q:Queue, next_observation_Q:Queue, done_Q:Queue, weight_Q,embedding):
 
     # Inti Model Learner
     path_model = join("weight", name, MODEL_SAVE)
@@ -106,7 +106,7 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
         # model = keras.models.load_model(path_model)
         # target_model = keras.models.load_model(path_model)
         
-
+        weight_Q.Value = model.get_weights()
     
     cache_path = get_cachePath(name)
 
@@ -193,11 +193,7 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
                 model_weight = model.get_weights()
                 try:
 
-                    if weight_Q.full():
-                        logging.getLogger(SYSTEM_LOG).info(f'LEARNER| weight is full at step {step_training.value}')
-                        weight_Q.get()
-                    weight_Q.put(model_weight)
-      
+                    weight_Q.append(model_weight)
                     logging.getLogger(SYSTEM_LOG).info(f'LEARNER| Complete Copy weight from Model to Agent at step {step_training.value}')
                 except:
                     logging.getLogger(SYSTEM_LOG).error(f'LEARNER| Copy weight from Model to Agent error at step {step_training.value}')
@@ -353,7 +349,7 @@ class Recommend_core():
             # Select model
             category_model:Subject_core = self.select_model(category)
 
-            # self.update_weight(category_model)
+            self.update_weight(category_model)
             # category_model.event_copy_weight.wait()
 
             predicted = category_model.agent((encoded_reshaped, np.array([topic_number])))
@@ -577,21 +573,24 @@ class Recommend_core():
         lastest_weight = None
         try:
 
-            self.lock.acquire()
-            if not category_model.items_shared.weight.empty():
-                    lastest_weight = category_model.items_shared.weight.get()
-            # self.lock.release()            
-            # # Update weight                 
-            if lastest_weight is not None:
-                # category_model.event_copy_weight.clear()
+            
+            # if not category_model.items_shared.weight.empty():
+            #         lastest_weight = category_model.items_shared.weight.get()
+            # # self.lock.release()            
+            # # # Update weight                 
+            # if lastest_weight is not None:
+            #     # category_model.event_copy_weight.clear()
               
+            weight = category_model.items_shared.weight.Value[-1]
+            if len(category_model.agent.get_weights()) == len(weight):
+                category_model.agent.set_weights(weight)
+                logging.getLogger(SYSTEM_LOG).info('Complete copy weight from LEARNER to AGENT')
+            else:
+                logging.getLogger(SYSTEM_LOG).error('None copy weight from LEARNER to AGENT')
+                
 
-                if len(category_model.agent.get_weights()) == len(lastest_weight):
-                    category_model.agent.set_weights(lastest_weight)
-                    logging.getLogger(SYSTEM_LOG).info('Complete copy weight from LEARNER to AGENT')
 
-
-                self.lock.release()
+                
                 # category_model.event_copy_weight.set()
         except:
             logging.getLogger(SYSTEM_LOG).error('FAILED copy weight from LEARNER to AGENT ')

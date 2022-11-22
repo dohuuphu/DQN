@@ -4,7 +4,7 @@ import functools
 import numpy as np
 import logging
 import pickle
-from multiprocessing import Queue, Value
+from multiprocessing import Queue, Value, Manager
 from dqn.variables import STATE_ACTION_SPACE, SYSTEM_LOG
 
 class Item_relayBuffer:
@@ -31,9 +31,11 @@ class RelayBuffer_cache():
 class Item_shared(RelayBuffer_cache):
     def __init__(self) -> None:
         super().__init__()
+        self.manage = Manager()
         self.step = Value('i',0)
         self.episode = Value('i',0)
-        self.weight = Queue(maxsize=10)    
+        self.weight = self.manage.list() #Queue(maxsize=10)    \
+        self.weight.Value = []
     
     def append_relayBuffer(self, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue):
         if self.observation.full():
