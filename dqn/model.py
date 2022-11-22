@@ -23,7 +23,7 @@ from dqn.database import MongoDb, Format_reader, User, Data_formater
 
 
 class Agent(keras.Model):
-    def __init__(self, action_shape):
+    def __init__(self, action_shape, embedding):
         super().__init__()
         init = tf.keras.initializers.HeUniform()
 
@@ -31,19 +31,17 @@ class Agent(keras.Model):
         self.dense2 = keras.layers.Dense(512, activation=tf.nn.relu, kernel_initializer=init)
         # self.dense3 = keras.layers.Dense(256, activation=tf.nn.tanh, kernel_initializer=init)
         self.dense4 = keras.layers.Dense(action_shape, activation='linear', kernel_initializer=init)
-        # self.topic_embedding = embedding
+        self.topic_embedding = embedding
 
     def call(self, inputs):
         try:
-            observation = inputs[0]
-            topic_ids= inputs[1] 
-            embedding= inputs[2] 
-            # (observation, topic_ids) = inputs
 
-            topic_embedding = embedding(topic_ids)
+            (observation, topic_ids) = inputs
+
+            topic_f = self.topic_embedding(topic_ids)
 
             x = self.dense1(observation)
-            x = keras.layers.Concatenate(axis=1)([x, topic_embedding])
+            x = keras.layers.Concatenate(axis=1)([x, topic_f])
             x = self.dense2(x)
             # x = self.dense3(x)
             output = self.dense4(x)
@@ -62,147 +60,148 @@ class Subject_core():
         self.event_copy_weight = threading.Event()  
         self.event_copy_weight.set()
         self.embedding = embedding
-        # LEARNER
-        self.path_model = join("weight", self.name, MODEL_SAVE)
 
-        if not isdir(self.path_model):
-            # Client usage
-            self.agent = Agent(STATE_ACTION_SPACE)
-            self.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
-            
-            # Training usage
-            self.model = Agent(STATE_ACTION_SPACE)
-            self.target_model = Agent(STATE_ACTION_SPACE)
+        self.agent = None
 
-            self.model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
-            self.target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
-        else:
-            self.agent = keras.models.load_model(self.path_model)
-            self.model = keras.models.load_model(self.path_model)
-            self.target_model = keras.models.load_model(self.path_model)
-
-        self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE))
+        self.train_summary_writer = None
     
-    def get_cachePath(self):
+
+def get_cachePath(name):
         # MATH categories
-        if self.name in ALGEBRA:
+        if name in ALGEBRA:
             cache_path = ALGEBRA_R_BUFFER
-        elif self.name in GEOMETRY:
+        elif name in GEOMETRY:
             cache_path = GEOMETRY_R_BUFFER
-        elif self.name in PROBABILITY:
+        elif name in PROBABILITY:
             cache_path = PROBABILITY_R_BUFFER
-        elif self.name in ANALYSIS:
+        elif name in ANALYSIS:
             cache_path = ANALYSIS_R_BUFFER
 
         # ENGLISH categories
-        elif self.name in GRAMMAR:
+        elif name in GRAMMAR:
             cache_path = GRAMMAR_R_BUFFER
-        elif self.name in VOVABULARY:
+        elif name in VOVABULARY:
             cache_path = VOCABULARY_R_BUFFER
         
-        return cache_path
+        return cache_path 
+
+def train(name, step_training:Value, episode:Value, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue, weight:Queue,embedding):
+
+    # Inti Model Learner
+    path_model = join("weight", name, MODEL_SAVE)
+
+    if not isdir(path_model):
+
+        model = Agent(STATE_ACTION_SPACE, embedding)
+        target_model = Agent(STATE_ACTION_SPACE, embedding)
+
+        model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
+        target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
+    else:
+        model = keras.models.load_model(path_model)
+        target_model = keras.models.load_model(path_model)
+
     
-    def train(self, step_training:Value, episode:Value, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue, weight:Queue, model:Agent, embedding):
-    
-        learning_rate = 0.7 # Learning rate
-        discount_factor = 0.618
-        temp_step = 0
-        temp_episode = 0
-        temp_update_target = 0
+    cache_path = get_cachePath(name)
 
-        # model = agent.get()
-        cache_path = self.get_cachePath()
+    def load_relayBuffer():
+        cache = load_pkl(cache_path)
+        if cache is not None:
+            return cache
+        else:
+            return deque(maxlen=1500)
 
-        def load_relayBuffer():
-            cache = load_pkl(cache_path)
-            if cache is not None:
-                return cache
-            else:
-                return deque(maxlen=1500)
+    replay_memory:deque = load_relayBuffer()
 
-        replay_memory:deque = load_relayBuffer()
+    def cache_relayBuffer():
+        save_pkl(replay_memory, cache_path)
 
-        # def cache_relayBuffer():
-        #     save_pkl(replay_memory, cache_path)
+    atexit.register(cache_relayBuffer)
 
-        # atexit.register(cache_relayBuffer)
+    train_summary_writer = tf.summary.create_file_writer(join("logs", name, MODEL_SAVE)) 
 
-        while True:
-            # Get data from Queue of main process
-            try:
-                replay_memory.append([observation.get(), topic_id.get(), action_index.get(), reward.get(), next_observation.get(), done.get()])
-            except:
-                pass
+    learning_rate = 0.7 # Learning rate
+    discount_factor = 0.618
+    temp_step = 0
+    temp_episode = 0
+    temp_update_target = 0
 
-            if step_training.value != 0:
-                if step_training.value - temp_step >= STEP_TRAIN and len(replay_memory)  >  MIN_REPLAY_SIZE:
-                    temp_step = step_training.value
-                    logging.getLogger(SYSTEM_LOG).info(f'{self.name} at step {step_training.value} -> Start trainning')
+    while True:
+        # Get data from Queue of main process
+        try:
+            replay_memory.append([observation.get(), topic_id.get(), action_index.get(), reward.get(), next_observation.get(), done.get()])
+        except:
+            pass
+
+        if step_training.value != 0:
+            if step_training.value - temp_step >= STEP_TRAIN and len(replay_memory)  >  MIN_REPLAY_SIZE:
+                temp_step = step_training.value
+                logging.getLogger(SYSTEM_LOG).info(f'{name} at step {step_training.value} -> Start trainning')
+                
+                # Get random data and remove them in replay_memory
+                mini_batch = random.sample(replay_memory, BATCH_SIZE)
+
+                current_states = []
+                current_topicID = []
+                new_states = []
+                for transition in mini_batch:
+                    state:np.ndarray = transition[0]
+                    current_states.append(state.reshape([1, state.shape[0]]))
+
+                    topic_number:int = transition[1]
+                    current_topicID.append(topic_number)
+
+                    new_state:np.ndarray = transition[4]
+                    new_states.append(new_state.reshape([1, new_state.shape[0]]))
+                
+                current_states = np.vstack(current_states)
+                new_states = np.vstack(new_states)
+                
+                current_qs_list = model((current_states, np.array(current_topicID))).numpy()
+                future_qs_list = target_model((new_states, np.array(current_topicID))).numpy()
+
+
+                X = []
+                Y = []
+                T = []
+                for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
+                    if not done:
+                        max_future_q = reward + discount_factor * np.max(future_qs_list[index])
+                    else:
+                        max_future_q = reward
+
+                    current_qs = current_qs_list[index]
+                    current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
+
+                    X.append(observation)
+                    Y.append(current_qs)
+                    T.append(topic_number)
                     
-                    # Get random data and remove them in replay_memory
-                    mini_batch = random.sample(replay_memory, BATCH_SIZE)
+                his = model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
 
-                    current_states = []
-                    current_topicID = []
-                    new_states = []
-                    for transition in mini_batch:
-                        state:np.ndarray = transition[0]
-                        current_states.append(state.reshape([1, state.shape[0]]))
+                with train_summary_writer.as_default():
+                    tf.summary.scalar('loss', his.history['loss'][0], step=episode.value)
+                    tf.summary.scalar('acc', his.history['accuracy'][0], step=episode.value)
+                
+                # Copy weight to Agent
+                try:
+                    weight.put(model.get_weights())
+                except:
+                    logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {step_training.value}')
 
-                        topic_number:int = transition[1]
-                        current_topicID.append(topic_number)
-
-                        new_state:np.ndarray = transition[4]
-                        new_states.append(new_state.reshape([1, new_state.shape[0]]))
-                    
-                    current_states = np.vstack(current_states)
-                    new_states = np.vstack(new_states)
-                    
-                    current_qs_list = self.model((current_states, np.array(current_topicID), embedding)).numpy()
-                    future_qs_list = self.target_model((new_states, np.array(current_topicID), embedding)).numpy()
-
-
-                    X = []
-                    Y = []
-                    T = []
-                    for index, (observation, topic_number, action, reward, new_observation, done) in enumerate(mini_batch):
-                        if not done:
-                            max_future_q = reward + discount_factor * np.max(future_qs_list[index])
-                        else:
-                            max_future_q = reward
-
-                        current_qs = current_qs_list[index]
-                        current_qs[action] = ((1 - learning_rate) * current_qs[action] + learning_rate * max_future_q)
-
-                        X.append(observation)
-                        Y.append(current_qs)
-                        T.append(topic_number)
-                        
-                    his = self.model.fit((np.array(X),np.array(T)), np.array(Y), batch_size=BATCH_SIZE, verbose=0, shuffle=True, workers=1)
-
-                    with self.train_summary_writer.as_default():
-                        tf.summary.scalar('loss', his.history['loss'][0], step=episode.value)
-                        tf.summary.scalar('acc', his.history['accuracy'][0], step=episode.value)
-                    
-                    # Copy weight to Agent
-                    try:
-                        weight.put(self.model.get_weights())
-                    except:
-                        logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {step_training.value}')
-
-                    # Update weight
-                    
-                    if step_training.value - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
-                        # Log
-                        logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight of taget_model {self.name} model at {episode.value} episode !!!')
-                        weight = self.model.get_weights()
-                        self.target_model.set_weights(weight)
-                        temp_update_target = step_training.value 
-                    
-                    if episode.value - temp_episode >= EPISODE_SAVE:
-                        logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {self.name} model at {episode.value} episode !!!')
-                        self.model.save(self.path_model)
-                        temp_episode = episode.value
+                # Update weight
+                
+                if step_training.value - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
+                    # Log
+                    logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight of taget_model {name} model at {episode.value} episode !!!')
+                    weight = model.get_weights()
+                    target_model.set_weights(weight)
+                    temp_update_target = step_training.value 
+                
+                if episode.value - temp_episode >= EPISODE_SAVE:
+                    logging.getLogger(SYSTEM_LOG).info(f'SAVE weight {name} model at {episode.value} episode !!!')
+                    model.save(path_model)
+                    temp_episode = episode.value
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
@@ -211,7 +210,7 @@ class Recommend_core():
         self.database = MongoDb()    
 
         self.embedding = keras.layers.Embedding(NUM_TOPIC, 32, input_length=1, trainable=False)
-        procs = [] 
+
         self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate, embedding=self.embedding)
         self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate, embedding=self.embedding)
         self.math_Algebra = Subject_core(name=ALGEBRA, learning_rate=learning_rate, embedding=self.embedding)
@@ -219,8 +218,8 @@ class Recommend_core():
         self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, embedding=self.embedding)
         self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, embedding=self.embedding)
 
-        
-        procs.append(Process(target=self.english_Grammar.train, args=(self.english_Grammar.items_shared.step,
+        procs = [] 
+        procs.append(Process(target=train, args=(GRAMMAR[0], self.english_Grammar.items_shared.step,
                                                                                 self.english_Grammar.items_shared.episode,
                                                                                 self.english_Grammar.items_shared.observation,
                                                                                 self.english_Grammar.items_shared.topic_id,
@@ -229,9 +228,8 @@ class Recommend_core():
                                                                                 self.english_Grammar.items_shared.next_observation,
                                                                                 self.english_Grammar.items_shared.done,
                                                                                 self.english_Grammar.items_shared.weight,
-                                                                                self.english_Grammar.model,
-                                                                                self.embedding)))
-        procs.append(Process(target=self.english_Vocabulary.train, args=(self.english_Vocabulary.items_shared.step,
+                                                                                self.english_Grammar.embedding)))
+        procs.append(Process(target=train, args=(VOVABULARY[0], self.english_Vocabulary.items_shared.step,
                                                                                 self.english_Vocabulary.items_shared.episode,
                                                                                 self.english_Vocabulary.items_shared.observation,
                                                                                 self.english_Vocabulary.items_shared.topic_id,
@@ -240,9 +238,8 @@ class Recommend_core():
                                                                                 self.english_Vocabulary.items_shared.next_observation,
                                                                                 self.english_Vocabulary.items_shared.done,
                                                                                 self.english_Vocabulary.items_shared.weight,
-                                                                                self.english_Vocabulary.model,
-                                                                                self.embedding)))
-        procs.append(Process(target=self.math_Algebra.train, args=(self.math_Algebra.items_shared.step,
+                                                                                self.english_Vocabulary.embedding)))
+        procs.append(Process(target=train, args=(ALGEBRA[0], self.math_Algebra.items_shared.step,
                                                                                 self.math_Algebra.items_shared.episode,
                                                                                 self.math_Algebra.items_shared.observation,
                                                                                 self.math_Algebra.items_shared.topic_id,
@@ -251,9 +248,8 @@ class Recommend_core():
                                                                                 self.math_Algebra.items_shared.next_observation,
                                                                                 self.math_Algebra.items_shared.done,
                                                                                 self.math_Algebra.items_shared.weight,
-                                                                                self.math_Algebra.model,
-                                                                                self.embedding)))
-        procs.append(Process(target=self.math_Geometry.train, args=(self.math_Geometry.items_shared.step,
+                                                                                self.math_Algebra.embedding)))
+        procs.append(Process(target=train, args=(GEOMETRY[0], self.math_Geometry.items_shared.step,
                                                                                 self.math_Geometry.items_shared.episode,
                                                                                 self.math_Geometry.items_shared.observation,
                                                                                 self.math_Geometry.items_shared.topic_id,
@@ -262,9 +258,8 @@ class Recommend_core():
                                                                                 self.math_Geometry.items_shared.next_observation,
                                                                                 self.math_Geometry.items_shared.done,
                                                                                 self.math_Geometry.items_shared.weight,
-                                                                                self.math_Geometry.model,
-                                                                                self.embedding)))
-        procs.append(Process(target=self.math_Probability.train, args=(self.math_Probability.items_shared.step,
+                                                                                self.math_Geometry.embedding)))
+        procs.append(Process(target=train, args=(PROBABILITY[0], self.math_Probability.items_shared.step,
                                                                                 self.math_Probability.items_shared.episode,
                                                                                 self.math_Probability.items_shared.observation,
                                                                                 self.math_Probability.items_shared.topic_id,
@@ -273,9 +268,8 @@ class Recommend_core():
                                                                                 self.math_Probability.items_shared.next_observation,
                                                                                 self.math_Probability.items_shared.done,
                                                                                 self.math_Probability.items_shared.weight,
-                                                                                self.math_Probability.model,
-                                                                                self.embedding)))
-        procs.append(Process(target=self.math_Analysis.train, args=(self.math_Analysis.items_shared.step,
+                                                                                self.math_Probability.embedding)))
+        procs.append(Process(target=train, args=(ANALYSIS[0], self.math_Analysis.items_shared.step,
                                                                                 self.math_Analysis.items_shared.episode,
                                                                                 self.math_Analysis.items_shared.observation,
                                                                                 self.math_Analysis.items_shared.topic_id,
@@ -284,11 +278,24 @@ class Recommend_core():
                                                                                 self.math_Analysis.items_shared.next_observation,
                                                                                 self.math_Analysis.items_shared.done,
                                                                                 self.math_Analysis.items_shared.weight,
-                                                                                self.math_Analysis.model,
-                                                                                self.embedding)))
+                                                                                self.math_Analysis.embedding)))
         
         for proc in procs:
             proc.start()
+
+
+        self.english_Grammar.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.english_Grammar.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        self.english_Vocabulary.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.english_Vocabulary.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        self.math_Algebra.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Algebra.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        self.math_Geometry.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Geometry.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        self.math_Probability.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Probability.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
     
 
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
@@ -320,7 +327,7 @@ class Recommend_core():
             self.update_weight(category_model)
             category_model.event_copy_weight.wait()
 
-            predicted = category_model.agent((encoded_reshaped, np.array([topic_number]), category_model.embedding ))
+            predicted = category_model.agent((encoded_reshaped, np.array([topic_number])))
 
             # Get action 
             action = np.argmax(predicted)
