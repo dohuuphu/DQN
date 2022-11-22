@@ -470,10 +470,11 @@ class MongoDb:
 
         activate_mocktests = {}
         for category in all_categorys:
-
-            if plan_name in list(content[category][level].keys()):
-                activate_mocktests.update({category:content[category][level][plan_name]})
-
+            try:
+                if plan_name in list(content[category][level].keys()):
+                    activate_mocktests.update({category:content[category][level][plan_name]})
+            except:
+                pass
         return activate_mocktests
 
     def get_lessonID_in_topic(self, action_index:int, subject:str, category:str, level:str, topic_name:str)->list:

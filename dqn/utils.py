@@ -21,27 +21,38 @@ class Item_relayBuffer:
 
 class RelayBuffer_cache():
     def __init__(self) -> None:
-        self.observation = Queue(maxsize=1500)
-        self.topic_id = Queue(maxsize=1500)
-        self.action_index = Queue(maxsize=1500)
-        self.reward = Queue(maxsize=1500)
-        self.next_observation = Queue(maxsize=1500)
-        self.done = Queue(maxsize=1500)
+        self.observation = Queue(maxsize=1000)
+        self.topic_id = Queue(maxsize=1000)
+        self.action_index = Queue(maxsize=1000)
+        self.reward = Queue(maxsize=1000)
+        self.next_observation = Queue(maxsize=1000)
+        self.done = Queue(maxsize=1000)
 
 class Item_shared(RelayBuffer_cache):
     def __init__(self) -> None:
         super().__init__()
         self.step = Value('i',0)
         self.episode = Value('i',0)
-        self.weight = Queue(maxsize=1500)    
+        self.weight = Queue(maxsize=10)    
     
     def append_relayBuffer(self, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue):
+        if self.observation.full():
+          self.observation.get()   
+          self.topic_id.get()   
+          self.action_index.get()   
+          self.reward.get()   
+          self.next_observation.get()   
+          self.done.get() 
+
+
         self.observation.put(observation)   
         self.topic_id.put(topic_id)   
         self.action_index.put(action_index)   
         self.reward.put(reward)   
         self.next_observation.put(next_observation)   
-        self.done.put(done)   
+        self.done.put(done)  
+
+   
     
     def udpate_episode(self, episode:int):
         self.episode.value = episode

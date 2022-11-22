@@ -13,7 +13,7 @@ from tensorflow import keras
 from collections import deque
 from threading import Lock, Event
 from concurrent.futures import ThreadPoolExecutor
-from multiprocessing import Process, Manager, Queue, Value
+from multiprocessing import Process, Manager, Queue, Value, Lock
 
 from api.route import Item
 from dqn.utils import *
@@ -85,7 +85,7 @@ def get_cachePath(name):
         
         return cache_path 
 
-def train(name, step_training:Value, episode:Value, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue, weight:Queue,embedding):
+def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_id_Q:Queue, action_index_Q:Queue, reward_Q:Queue, next_observation_Q:Queue, done_Q:Queue, weight_Q:Queue,embedding):
 
     # Inti Model Learner
     path_model = join("weight", name, MODEL_SAVE)
@@ -98,8 +98,14 @@ def train(name, step_training:Value, episode:Value, observation:Queue, topic_id:
         model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
     else:
-        model = keras.models.load_model(path_model)
-        target_model = keras.models.load_model(path_model)
+        model = Agent(STATE_ACTION_SPACE, embedding)
+        target_model = Agent(STATE_ACTION_SPACE, embedding)
+
+        model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
+        target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
+        # model = keras.models.load_model(path_model)
+        # target_model = keras.models.load_model(path_model)
+        
 
     
     cache_path = get_cachePath(name)
@@ -109,7 +115,7 @@ def train(name, step_training:Value, episode:Value, observation:Queue, topic_id:
         if cache is not None:
             return cache
         else:
-            return deque(maxlen=1500)
+            return deque(maxlen=10000)
 
     replay_memory:deque = load_relayBuffer()
 
@@ -129,7 +135,7 @@ def train(name, step_training:Value, episode:Value, observation:Queue, topic_id:
     while True:
         # Get data from Queue of main process
         try:
-            replay_memory.append([observation.get(), topic_id.get(), action_index.get(), reward.get(), next_observation.get(), done.get()])
+            replay_memory.append([observation_Q.get(), topic_id_Q.get(), action_index_Q.get(), reward_Q.get(), next_observation_Q.get(), done_Q.get()])
         except:
             pass
 
@@ -184,18 +190,29 @@ def train(name, step_training:Value, episode:Value, observation:Queue, topic_id:
                     tf.summary.scalar('acc', his.history['accuracy'][0], step=episode.value)
                 
                 # Copy weight to Agent
+                model_weight = model.get_weights()
                 try:
-                    weight.put(model.get_weights())
+
+                    if weight_Q.full():
+                        logging.getLogger(SYSTEM_LOG).info(f'LEARNER| weight is full at step {step_training.value}')
+                        weight_Q.get()
+                    weight_Q.put(model_weight)
+      
+                    logging.getLogger(SYSTEM_LOG).info(f'LEARNER| Complete Copy weight from Model to Agent at step {step_training.value}')
                 except:
-                    logging.getLogger(SYSTEM_LOG).info(f'Copy weight from Model to Agent error at step {step_training.value}')
+                    logging.getLogger(SYSTEM_LOG).error(f'LEARNER| Copy weight from Model to Agent error at step {step_training.value}')
 
                 # Update weight
                 
                 if step_training.value - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
                     # Log
-                    logging.getLogger(SYSTEM_LOG).info(f'UPDATE weight of taget_model {name} model at {episode.value} episode !!!')
-                    weight = model.get_weights()
-                    target_model.set_weights(weight)
+                    logging.getLogger(SYSTEM_LOG).info(f'LEARNER| UPDATE weight of taget_model {name} model at {episode.value} episode !!!')
+                    # weight = model.get_weights()
+                    try:
+                        logging.getLogger(SYSTEM_LOG).info(f'LEARNER| Complete tager model at step {step_training.value}')
+                        target_model.set_weights(model_weight)
+                    except :
+                        logging.getLogger(SYSTEM_LOG).error(f'LEARNER| ERROR tager model at step {step_training.value}')
                     temp_update_target = step_training.value 
                 
                 if episode.value - temp_episode >= EPISODE_SAVE:
@@ -285,17 +302,29 @@ class Recommend_core():
 
 
         self.english_Grammar.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.english_Grammar.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         self.english_Grammar.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        
         self.english_Vocabulary.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.english_Vocabulary.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         self.english_Vocabulary.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        
         self.math_Algebra.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Algebra.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         self.math_Algebra.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        
         self.math_Geometry.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Geometry.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         self.math_Geometry.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        
         self.math_Probability.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Probability.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         self.math_Probability.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        
         self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Analysis.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        
     
 
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
@@ -324,8 +353,8 @@ class Recommend_core():
             # Select model
             category_model:Subject_core = self.select_model(category)
 
-            self.update_weight(category_model)
-            category_model.event_copy_weight.wait()
+            # self.update_weight(category_model)
+            # category_model.event_copy_weight.wait()
 
             predicted = category_model.agent((encoded_reshaped, np.array([topic_number])))
 
@@ -462,9 +491,9 @@ class Recommend_core():
                 if next_topic >= len(data_readed.total_topic):
                     plan_done = True
 
-                    self.lock.acquire()
+                    # self.lock.acquire()
                     self.database.update_interuptedPlan(inputs.user_id, inputs.category, inputs.program_level, inputs.plan_name)
-                    self.lock.release()
+                    # self.lock.release()
 
                 else:
                     # Get next topic
@@ -477,9 +506,9 @@ class Recommend_core():
                             action_index = None, action_id = None, topic_name = data_readed.topic_name, init_score = None, 
                             flow_topic = None)
                 
-                self.lock.acquire()
+                # self.lock.acquire()
                 self.database.update_prev_score(Data_formater(info))
-                self.lock.release()
+                # self.lock.release()
             log_mssg += f'Category_{inputs.category} After checkdone {(time.time()-start):.3f}\n'
 
         if plan_done:
@@ -546,18 +575,26 @@ class Recommend_core():
 
     def update_weight(self, category_model:Subject_core):
         lastest_weight = None
-        while not category_model.items_shared.weight.empty():
-                lastest_weight = category_model.items_shared.weight.get()
+        try:
 
-        # Update weight                 
-        if lastest_weight is not None:
-            category_model.event_copy_weight.clear()
-            try:
-                category_model.model.set_weights(lastest_weight)
-                print("copy weight passed")
-            except:
-                print("=============================")
-            category_model.event_copy_weight.set()
+            self.lock.acquire()
+            if not category_model.items_shared.weight.empty():
+                    lastest_weight = category_model.items_shared.weight.get()
+            # self.lock.release()            
+            # # Update weight                 
+            if lastest_weight is not None:
+                # category_model.event_copy_weight.clear()
+              
+
+                if len(category_model.agent.get_weights()) == len(lastest_weight):
+                    category_model.agent.set_weights(lastest_weight)
+                    logging.getLogger(SYSTEM_LOG).info('Complete copy weight from LEARNER to AGENT')
+
+
+                self.lock.release()
+                # category_model.event_copy_weight.set()
+        except:
+            logging.getLogger(SYSTEM_LOG).error('FAILED copy weight from LEARNER to AGENT ')
 
 
     def update_step(self, category:str):
@@ -568,9 +605,9 @@ class Recommend_core():
         category_model:Subject_core = self.select_model(category)
 
         # Update step
-        self.lock.acquire()
+        # self.lock.acquire()
         category_model.items_shared.update_step()
-        self.lock.release()
+        # self.lock.release()
 
 
     def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:str):
@@ -580,9 +617,11 @@ class Recommend_core():
         # Update buffer with thread-safety
         reward, done = category_model.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                              num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-        self.lock.acquire()
+        # self.lock.acquire()
 
-        category_model.reward_per_episode += reward                                    
+        category_model.reward_per_episode += reward     
+
+        # self.lock.release()                               
         episode = category_model.items_shared.episode.value
 
         if done:
@@ -596,9 +635,9 @@ class Recommend_core():
             category_model.reward_per_episode = 0
 
             # Update new episode value
+
             category_model.items_shared.udpate_episode(episode=episode)
-        
-        self.lock.release()
+
 
         # Update relay_buffer
         category_model.items_shared.append_relayBuffer(item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
