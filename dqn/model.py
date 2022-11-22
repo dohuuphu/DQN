@@ -106,7 +106,7 @@ class Learner():
         
         return cache_path
          
-    def train(self, step_training:Value, episode:Value, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue, weight:Queue):
+    def train(self, step_training:Value, episode:Value, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue, weight:Queue, model:Queue):
         
         learning_rate = 0.7 # Learning rate
         discount_factor = 0.618
@@ -114,6 +114,7 @@ class Learner():
         temp_episode = 0
         temp_update_target = 0
 
+        # model = agent.get()
         cache_path = self.get_cachePath()
 
         def load_relayBuffer():
@@ -125,25 +126,25 @@ class Learner():
 
         replay_memory:deque = load_relayBuffer()
 
-        def cache_relayBuffer():
-            save_pkl(replay_memory, cache_path)
+        # def cache_relayBuffer():
+        #     save_pkl(replay_memory, cache_path)
 
-        atexit.register(cache_relayBuffer)
+        # atexit.register(cache_relayBuffer)
 
         while True:
             # Get data from Queue of main process
             try:
-                self.replay_memory.append([observation.get(), topic_id.get(), action_index.get(), reward.get(), next_observation.get(), done.get()])
+                replay_memory.append([observation.get(), topic_id.get(), action_index.get(), reward.get(), next_observation.get(), done.get()])
             except:
                 pass
 
             if step_training.value != 0:
-                if step_training.value - temp_step >= STEP_TRAIN and len(self.replay_memory)  >  MIN_REPLAY_SIZE:
+                if step_training.value - temp_step >= STEP_TRAIN and len(replay_memory)  >  MIN_REPLAY_SIZE:
                     temp_step = step_training.value
                     logging.getLogger(SYSTEM_LOG).info(f'{self.name} at step {step_training.value} -> Start trainning')
                     
                     # Get random data and remove them in replay_memory
-                    mini_batch = random.sample(self.replay_memory, BATCH_SIZE)
+                    mini_batch = random.sample(replay_memory, BATCH_SIZE)
 
                     current_states = []
                     current_topicID = []
@@ -161,8 +162,9 @@ class Learner():
                     current_states = np.vstack(current_states)
                     new_states = np.vstack(new_states)
 
-                    current_qs_list = self.model((current_states, np.array(current_topicID))).numpy()
+                    current_qs_list = model((current_states, np.array(current_topicID))).numpy()
                     future_qs_list = self.target_model((new_states, np.array(current_topicID))).numpy()
+
 
                     X = []
                     Y = []
@@ -217,14 +219,18 @@ class Subject_core():
         self.event_copy_weight = threading.Event()  
         self.event_copy_weight.set()
         self.model = Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+        self.model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
+    
+
+        self.test_model =Agent(STATE_ACTION_SPACE, NUM_TOPIC)
+        self.test_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=learning_rate), metrics=['accuracy'])
         self.learner = Learner(name[0], learning_rate) 
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
         self.lock = Lock()
 
-        self.database = MongoDb()
-        
+        self.database = MongoDb()    
 
         procs = [] 
         self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate)
@@ -243,7 +249,8 @@ class Recommend_core():
                                                                                 self.english_Grammar.items_shared.reward,
                                                                                 self.english_Grammar.items_shared.next_observation,
                                                                                 self.english_Grammar.items_shared.done,
-                                                                                self.english_Grammar.items_shared.weight)))
+                                                                                self.english_Grammar.items_shared.weight,
+                                                                                self.english_Grammar.test_model)))
         procs.append(Process(target=self.english_Vocabulary.learner.train, args=(self.english_Vocabulary.items_shared.step,
                                                                                 self.english_Vocabulary.items_shared.episode,
                                                                                 self.english_Vocabulary.items_shared.observation,
@@ -252,7 +259,8 @@ class Recommend_core():
                                                                                 self.english_Vocabulary.items_shared.reward,
                                                                                 self.english_Vocabulary.items_shared.next_observation,
                                                                                 self.english_Vocabulary.items_shared.done,
-                                                                                self.english_Vocabulary.items_shared.weight)))
+                                                                                self.english_Vocabulary.items_shared.weight,
+                                                                                self.english_Vocabulary.test_model)))
         procs.append(Process(target=self.math_Algebra.learner.train, args=(self.math_Algebra.items_shared.step,
                                                                                 self.math_Algebra.items_shared.episode,
                                                                                 self.math_Algebra.items_shared.observation,
@@ -261,7 +269,8 @@ class Recommend_core():
                                                                                 self.math_Algebra.items_shared.reward,
                                                                                 self.math_Algebra.items_shared.next_observation,
                                                                                 self.math_Algebra.items_shared.done,
-                                                                                self.math_Algebra.items_shared.weight)))
+                                                                                self.math_Algebra.items_shared.weight,
+                                                                                self.math_Algebra.test_model)))
         procs.append(Process(target=self.math_Geometry.learner.train, args=(self.math_Geometry.items_shared.step,
                                                                                 self.math_Geometry.items_shared.episode,
                                                                                 self.math_Geometry.items_shared.observation,
@@ -270,7 +279,8 @@ class Recommend_core():
                                                                                 self.math_Geometry.items_shared.reward,
                                                                                 self.math_Geometry.items_shared.next_observation,
                                                                                 self.math_Geometry.items_shared.done,
-                                                                                self.math_Geometry.items_shared.weight)))
+                                                                                self.math_Geometry.items_shared.weight,
+                                                                                self.math_Geometry.test_model)))
         procs.append(Process(target=self.math_Probability.learner.train, args=(self.math_Probability.items_shared.step,
                                                                                 self.math_Probability.items_shared.episode,
                                                                                 self.math_Probability.items_shared.observation,
@@ -279,7 +289,8 @@ class Recommend_core():
                                                                                 self.math_Probability.items_shared.reward,
                                                                                 self.math_Probability.items_shared.next_observation,
                                                                                 self.math_Probability.items_shared.done,
-                                                                                self.math_Probability.items_shared.weight)))
+                                                                                self.math_Probability.items_shared.weight,
+                                                                                self.math_Probability.test_model)))
         procs.append(Process(target=self.math_Analysis.learner.train, args=(self.math_Analysis.items_shared.step,
                                                                                 self.math_Analysis.items_shared.episode,
                                                                                 self.math_Analysis.items_shared.observation,
@@ -288,14 +299,12 @@ class Recommend_core():
                                                                                 self.math_Analysis.items_shared.reward,
                                                                                 self.math_Analysis.items_shared.next_observation,
                                                                                 self.math_Analysis.items_shared.done,
-                                                                                self.math_Analysis.items_shared.weight)))
+                                                                                self.math_Analysis.items_shared.weight,
+                                                                                self.math_Analysis.test_model)))
         
         for proc in procs:
             proc.start()
     
-
-    def get_prediction(self):
-        pass
 
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
@@ -548,13 +557,13 @@ class Recommend_core():
                 lastest_weight = category_model.items_shared.weight.get()
 
         # Update weight                 
-        if lastest_weight is None:
+        if lastest_weight is not None:
             category_model.event_copy_weight.clear()
             try:
                 category_model.model.set_weights(lastest_weight)
                 print("copy weight passed")
             except:
-                pass
+                print("=============================")
             category_model.event_copy_weight.set()
 
 
