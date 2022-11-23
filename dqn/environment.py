@@ -57,7 +57,7 @@ class SimStudent():
 
       # All recommened action is correct
       if total_step <= num_items_inPool:
-        reward+=10
+        reward += 10
       
       # Exist wrong recommended action (select 1)
       if total_step > num_items_inPool:
