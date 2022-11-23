@@ -363,26 +363,38 @@ class MongoDb:
         new_val = {"$push":{step_path : data.step_info()} }
         self.user_db.update_one(myquery, new_val)
 
-    def update_prev_score_reward(self, data:Data_formater):
+    def update_prev_score_reward(self, data:Data_formater, update_lastest=False):
         myquery = {"user_id":data.user.id}
         doc = self.user_db.find(myquery)[0]
         curr_step = len(doc['category'][data.user.category][data.user.level][data.user.plan_name]['flow'][data.user.topic_name]) - 1
         prev_step = curr_step - 1
         
-        # Update prev_score
-        score_path = data.get_score_path(prev_step)
-        new_val = {"$set":{score_path : data.user.prev_score} }
-        self.user_db.update_one(myquery, new_val)
+        if update_lastest:
+            # Update current_score
+            score_path = data.get_score_path(curr_step)
+            new_val = {"$set":{score_path : data.user.prev_score}}
+            self.user_db.update_one(myquery, new_val)
 
-        # Update pre_reward
-        reward_path = data.get_reward_path(prev_step)
-        new_val = {"$set":{reward_path : data.user.reward} }
-        self.user_db.update_one(myquery, new_val)
-    
-        # Update current_reward
-        reward_path = data.get_reward_path(curr_step)
-        new_val = {"$set":{reward_path : data.user.reward} }
-        self.user_db.update_one(myquery, new_val)
+            # Update current_reward
+            reward_path = data.get_reward_path(curr_step)
+            new_val = {"$set":{reward_path : data.user.reward}}
+            self.user_db.update_one(myquery, new_val)
+        else:
+            # Update prev_score
+            score_path = data.get_score_path(prev_step)
+            new_val = {"$set":{score_path : data.user.prev_score}}
+            self.user_db.update_one(myquery, new_val)
+
+            # Update pre_reward
+            reward_path = data.get_reward_path(prev_step)
+            new_val = {"$set":{reward_path : data.user.reward}}
+            self.user_db.update_one(myquery, new_val)
+        
+            # Update current_reward
+            reward_path = data.get_reward_path(curr_step)
+            new_val = {"$set":{reward_path : data.user.reward}}
+            self.user_db.update_one(myquery, new_val)
+
 
 
     def update_interuptedPlan(self, user_id:str, category:str, level:str, curr_plan_name:str):

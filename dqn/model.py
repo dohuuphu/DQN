@@ -1,3 +1,4 @@
+import gc
 import sys
 import time
 import atexit
@@ -154,7 +155,7 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
 
         if step_training.value != 0:
             if step_training.value - temp_step >= STEP_TRAIN and len(replay_memory)  >  MIN_REPLAY_SIZE:
-                temp_step = step_training.value
+                temp_step +=  4#step_training.value
                 total_train_step+=1
                 logging.getLogger(SYSTEM_LOG).info(f'TRAINING {name}: AGENT_STEP {step_training.value} - LEARNER_STEP {total_train_step}')
                 
@@ -250,7 +251,7 @@ class Recommend_core():
                                                                                 self.english_Grammar.items_shared.next_observation,
                                                                                 self.english_Grammar.items_shared.done,
                                                                                 self.english_Grammar.items_shared.weight,
-                                                                                self.english_Grammar.embedding)))
+                                                                                self.english_Grammar.embedding), daemon=True))
         procs.append(Process(target=train, args=(VOVABULARY[0], self.english_Vocabulary.items_shared.step,
                                                                                 self.english_Vocabulary.items_shared.episode,
                                                                                 self.english_Vocabulary.items_shared.observation,
@@ -260,7 +261,7 @@ class Recommend_core():
                                                                                 self.english_Vocabulary.items_shared.next_observation,
                                                                                 self.english_Vocabulary.items_shared.done,
                                                                                 self.english_Vocabulary.items_shared.weight,
-                                                                                self.english_Vocabulary.embedding)))
+                                                                                self.english_Vocabulary.embedding), daemon=True))
         procs.append(Process(target=train, args=(ALGEBRA[0], self.math_Algebra.items_shared.step,
                                                                                 self.math_Algebra.items_shared.episode,
                                                                                 self.math_Algebra.items_shared.observation,
@@ -270,7 +271,7 @@ class Recommend_core():
                                                                                 self.math_Algebra.items_shared.next_observation,
                                                                                 self.math_Algebra.items_shared.done,
                                                                                 self.math_Algebra.items_shared.weight,
-                                                                                self.math_Algebra.embedding)))
+                                                                                self.math_Algebra.embedding), daemon=True))
         procs.append(Process(target=train, args=(GEOMETRY[0], self.math_Geometry.items_shared.step,
                                                                                 self.math_Geometry.items_shared.episode,
                                                                                 self.math_Geometry.items_shared.observation,
@@ -280,7 +281,7 @@ class Recommend_core():
                                                                                 self.math_Geometry.items_shared.next_observation,
                                                                                 self.math_Geometry.items_shared.done,
                                                                                 self.math_Geometry.items_shared.weight,
-                                                                                self.math_Geometry.embedding)))
+                                                                                self.math_Geometry.embedding), daemon=True))
         procs.append(Process(target=train, args=(PROBABILITY[0], self.math_Probability.items_shared.step,
                                                                                 self.math_Probability.items_shared.episode,
                                                                                 self.math_Probability.items_shared.observation,
@@ -290,7 +291,7 @@ class Recommend_core():
                                                                                 self.math_Probability.items_shared.next_observation,
                                                                                 self.math_Probability.items_shared.done,
                                                                                 self.math_Probability.items_shared.weight,
-                                                                                self.math_Probability.embedding)))
+                                                                                self.math_Probability.embedding), daemon=True))
         procs.append(Process(target=train, args=(ANALYSIS[0], self.math_Analysis.items_shared.step,
                                                                                 self.math_Analysis.items_shared.episode,
                                                                                 self.math_Analysis.items_shared.observation,
@@ -300,7 +301,7 @@ class Recommend_core():
                                                                                 self.math_Analysis.items_shared.next_observation,
                                                                                 self.math_Analysis.items_shared.done,
                                                                                 self.math_Analysis.items_shared.weight,
-                                                                                self.math_Analysis.embedding)))
+                                                                                self.math_Analysis.embedding), daemon=True))
         
         for proc in procs:
             proc.start()
@@ -350,7 +351,7 @@ class Recommend_core():
             self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
         self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Analysis.name, MODEL_SAVE)) 
     
-        K.clear_session()
+        # K.clear_session()
 
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
@@ -360,6 +361,7 @@ class Recommend_core():
         model_predict = 'model'
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
+
         if np.random.rand() <= epsilon:
             # Explore
             model_predict = 'rand_explore'
@@ -440,7 +442,6 @@ class Recommend_core():
         # for inputs in parsed_inputs:
         #     results.update(self.process_learningPath(inputs))
 
-
         return results, mssgs
 
     # Interact with user_data => using category as subject
@@ -507,7 +508,7 @@ class Recommend_core():
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
                                                 score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
-            episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+            episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category, curr_reward=reward_per_user)
             # Update reward of user
             reward_per_user += reward
 
@@ -536,7 +537,7 @@ class Recommend_core():
                             flow_topic = None)
                 
                 # self.lock.acquire()
-                self.database.update_prev_score_reward(Data_formater(info))
+                self.database.update_prev_score_reward(Data_formater(info), update_lastest=True)
                 # self.lock.release()
 
         if plan_done:
@@ -560,7 +561,7 @@ class Recommend_core():
         # Get action
         while True:
             action_index, model_predict_flag = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
-
+            
             # Update new action to prev_action
             prev_action = action_index
             
@@ -574,7 +575,7 @@ class Recommend_core():
                 item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
                                                 action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
 
-                episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+                episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category, curr_reward=reward_per_user)
                 
                 # Update reward of user
                 reward_per_user += reward 
@@ -626,11 +627,11 @@ class Recommend_core():
         # self.lock.release()
 
 
-    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:str):
+    def update_relayBuffer(self, item_relayBuffer:Item_relayBuffer, category:str, curr_reward:int):
         # Select model
         category_model:Subject_core = self.select_model(category)
 
-        # Update buffer with thread-safety
+        # Get reward
         reward, done = category_model.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                              num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
 
@@ -641,15 +642,13 @@ class Recommend_core():
 
             # Write total reward in a episode to tensorboard
             with category_model.train_summary_writer.as_default():
-                tf.summary.scalar('reward', category_model.reward_per_episode, step=episode)
+                tf.summary.scalar('reward', (curr_reward+reward), step=episode)
             
             # Reset total reward after done episode
             category_model.reward_per_episode = 0
 
             # Update new episode value
-
             category_model.items_shared.udpate_episode(episode=episode)
-
 
         # Update relay_buffer
         category_model.items_shared.append_relayBuffer(item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
