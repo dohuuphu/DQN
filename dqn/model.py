@@ -604,7 +604,7 @@ class Recommend_core():
             weight = category_model.items_shared.weight[-1]
             if len(category_model.agent.get_weights()) == len(weight):
                 category_model.agent.set_weights(weight)
-                logging.getLogger(SYSTEM_LOG).info('DONE copy weight from LEARNER to AGENT')
+                # logging.getLogger(SYSTEM_LOG).info('DONE copy weight from LEARNER to AGENT')
             else:
                 logging.getLogger(SYSTEM_LOG).error('None copy weight from LEARNER to AGENT')
 
