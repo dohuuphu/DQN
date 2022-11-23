@@ -349,20 +349,20 @@ class Recommend_core():
         except:
             self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
         self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Analysis.name, MODEL_SAVE)) 
-        
     
         K.clear_session()
+
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
         action = None
-        model_predict = True
+        model_predict = 'model'
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
         if np.random.rand() <= epsilon:
             # Explore
-            model_predict = False
+            model_predict = 'rand_explore'
             if np.random.choice([1,0],p=[0.3, 0.7]):    # Random value 1 or 0
                 action = random.randint(0, len(observation) - 1)
             else:
@@ -388,7 +388,7 @@ class Recommend_core():
 
             # Random action after explore 
             if prev_action == action:
-                model_predict = False
+                model_predict = 'rand_exploit'
                 action = random.choice(zero_list)
         
         # K.clear_session()
@@ -563,7 +563,7 @@ class Recommend_core():
             # Update new action to prev_action
             prev_action = action_index
             
-            log_mssg += f'Category_{inputs.category} Get action "{action_index}" (real:{model_predict_flag}) {(time.time()-start):.3f}\n'
+            log_mssg += f'Category_{inputs.category} Get action "{action_index}" ({model_predict_flag}) {(time.time()-start):.3f}\n'
 
             # Select action until get right
             
