@@ -15,9 +15,9 @@ def f(a:test, num, l, work):
     while True:
         time.sleep(1)
         if work:
-            l.append([1])
+            l.append([])
             try:
-                l.remove(-2)
+                l[-1] =0
             except:
                 pass
         print(work, l)
@@ -37,7 +37,7 @@ def get_q(q):
 # a = Value('i', 1)
 a = Value('i',0)
 m = Manager()
-l = m.list(range(1))
+l = m.list()
 
 pro = Process(target=f, args=(test,1 ,l,True))
 pro2 = Process(target=f, args=(test,1,l, False))

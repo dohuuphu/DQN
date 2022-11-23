@@ -34,8 +34,8 @@ class Item_shared(RelayBuffer_cache):
         self.manage = Manager()
         self.step = Value('i',0)
         self.episode = Value('i',0)
-        self.weight = self.manage.list() #Queue(maxsize=10)    \
-        self.weight.Value = []
+        self.weight = self.manage.list() #Queue(maxsize=10)    
+        self.weight.append([])
     
     def append_relayBuffer(self, observation:Queue, topic_id:Queue, action_index:Queue, reward:Queue, next_observation:Queue, done:Queue):
         if self.observation.full():
@@ -54,8 +54,6 @@ class Item_shared(RelayBuffer_cache):
         self.next_observation.put(next_observation)   
         self.done.put(done)  
 
-   
-    
     def udpate_episode(self, episode:int):
         self.episode.value = episode
     
@@ -114,86 +112,3 @@ def rawObservation_to_standarObservation(raw_observation:list, topic:str)->list:
             standar_observation[id] = val
 
         return standar_observation
-
-# @safety_thread
-# def read_from_DB(student_id:str, subject:str, level:int):
-#     # Doing something
-#     action, topic_id, zero_list, observation = None
-        
-#     return action, topic_id, zero_list, observation
-    
-# @safety_thread
-# def write_to_DB( student_id:str, subject:str, level:int, masteries_of_topic:dict, action_index:int, action_id:int, prev_score:list, topic_name:str):
-
-    
-    
-#     '''	
-#         - student_id
-#         - student_gmail(optinal)
-#         - subject:
-#             + English
-#                 + 10:
-#                     + path_1 (mocktest_1):
-#                         + status: pending/inprocess/done
-#                         + total_topic:
-#                             + topic_1: 1
-#                             + topic_3: 2
-#                             + topic 2: 3
-#                             + ...
-#                         + base_score:
-#                         + topic_1 (topic_name): 
-#                             + step:
-#                                 + 0: 
-#                                     + action_recommend: (depend on idex in masteries)
-#                                     + action_ID: (lesson_id)
-#                                     + score:
-#                                     + masteries{lesson_id:value, ...} # (step_inference) (masteries of topic)
-#                                 + 1: 
-#                                     + action_recommend: (depend on idex in masteries)
-#                                     + action_ID: (lesson_id)
-#                                     + score:
-#                                     + masteries{lesson_id:value, ...} # (step_inference) (masteries of topic)
-#                             + id: 1 # Need a function to create and map all topic_name->id
-#                             + flow: 1   # Indicate subject selection
-#                             + status: pending/inprocess/done
-
-#                         + topic_2:
-#                             + masteries:
-#                                 + 0: {lesson_id:value, ...}
-#                                 + 1:  {lesson_id:value, ...}
-#                             + id: 2
-#                             + flow: None 
-#                             + status: pending/inprocess/done
-#                         ...
-#                         + topic_n: ... # number of topic is depend on num_quest that related to the topic
-
-#                     + path_2:
-#                         ...
-#                 + 11: ..
-            
-#             + Math:
-#                 ...
-
-
-#     - content:
-#         - Englist:
-#             - 11:
-#                 - Vocabulary (category):
-#                     - topic_1 (topic name): [id_1, id_2, ...]
-#                     - topic_2 (topic name): [id_1, id_2, ...]
-#                 - Grammar:
-#                     - topic_1 (topic name): [id_1, id_2, ...]
-            
-#             - 12:
-#                 - Vocabulary (category):
-#                     - topic_1 (topic name): [id_1, id_2, ...]
-#                     - topic_2 (topic name): [id_1, id_2, ...]
-#                 - Grammar:
-#                     - topic_1 (topic name): [id_1, id_2, ...]
-#         - Math:
-
-#     '''
-#     # return True/False
-#     pass
-
-    

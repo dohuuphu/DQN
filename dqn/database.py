@@ -213,8 +213,8 @@ class MongoDb:
                     topic_masteries[lesson_id] = int(total_masteries[lesson_id]) # Update masteries from total to topic
             
 
-        except OSError as e:
-            info = f'{user_id}_{subject}_{level}_{topic_name}:get_topic_masteries {e}'
+        except:
+            info = f'{user_id}_{subject}_{level}_{topic_name} get topic masteries FAILED'
             logging.getLogger(SYSTEM_LOG).error(info)
 
         return  topic_masteries
@@ -404,18 +404,20 @@ class MongoDb:
     def update_total_topic(self, data:Data_formater):
         # using 1 time when init new user
         # Get total topic name
-        myquery = {"user_id":data.user.id}
-        doc = self.user_db.find(myquery)[0]
-        total_topic:dict = doc['category'][data.user.category][data.user.level][data.user.plan_name]['total_topic']
+        try:
+            myquery = {"user_id":data.user.id}
+            doc = self.user_db.find(myquery)[0]
+            total_topic:dict = doc['category'][data.user.category][data.user.level][data.user.plan_name]['total_topic']
 
-        for topic_name in total_topic:
-            topic_masteries:dict = self.get_topic_masteries(user_id=data.user.id,subject=data.user.subject, category=data.user.category, level=data.user.level, topic_name=topic_name, total_masteries=data.user.total_masteries)
+            for topic_name in total_topic:
+                topic_masteries:dict = self.get_topic_masteries(user_id=data.user.id,subject=data.user.subject, category=data.user.category, level=data.user.level, topic_name=topic_name, total_masteries=data.user.total_masteries)
 
-            # Update total_topic value, topic_masteries is init masteries
-            value = {f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
-
+                # Update total_topic value, topic_masteries is init masteries
+                value = {f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
 
             self.user_db.update_one(myquery, {'$set':value})
+        except:
+            logging.getLogger(SYSTEM_LOG).error(f"{data.user.mail}_{data.user.category}_{data.user.level}_{topic_name}update total topic was FAILED")
 
     def is_userExist(self, user:User):
         num_doc = self.user_db.count_documents({"user_id":user.id})
