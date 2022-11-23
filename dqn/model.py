@@ -460,6 +460,8 @@ class Recommend_core():
         plan_done = False
         episode = 0
 
+        reward_per_user = data_readed.prev_reward
+
         # New plan
         if data_readed.prev_action is None :  
             flow_topic = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
@@ -472,7 +474,7 @@ class Recommend_core():
             prev_action = None
             init_score = inputs.score
             total_masteries = inputs.masteries
-            log_mssg += f'Category_{inputs.category} New_plan {(time.time()-start):.3f}\n'
+
   
         # Exist plan
         else: 
@@ -505,8 +507,10 @@ class Recommend_core():
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
                                                 score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
-            episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
-            log_mssg += f'Category_{inputs.category} Before checkdone {(time.time()-start):.3f}\n'
+            episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+            # Update reward of user
+            reward_per_user += reward
+
             # Topic is DONE
             if 0 not in curr_observation:
                 # Render next topic
@@ -527,14 +531,13 @@ class Recommend_core():
                 # Update prev_score, path_status
                 info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
                             category=inputs.category, level = inputs.program_level, plan_name = inputs.plan_name, 
-                            prev_score = inputs.score, total_masteries=total_masteries, topic_masteries = masteries_of_topic,     # depend on inputs
+                            prev_score = inputs.score, reward=reward_per_user, total_masteries=total_masteries, topic_masteries = masteries_of_topic,     # depend on inputs
                             action_index = None, action_id = None, topic_name = data_readed.topic_name, init_score = None, 
                             flow_topic = None)
                 
                 # self.lock.acquire()
-                self.database.update_prev_score(Data_formater(info))
+                self.database.update_prev_score_reward(Data_formater(info))
                 # self.lock.release()
-            log_mssg += f'Category_{inputs.category} After checkdone {(time.time()-start):.3f}\n'
 
         if plan_done:
             log_mssg += f'Category_{inputs.category} Topic is done\n'
@@ -553,8 +556,6 @@ class Recommend_core():
         if curr_zero_list == []:
             logging.getLogger(SYSTEM_LOG).error(f'{inputs.user_mail}_{inputs.category} topic name{curr_topic_name} masteries {masteries_of_topic}')
         curr_topic_id:int = self.database.get_topic_id(inputs.subject, inputs.program_level, curr_topic_name) # process from curr_topic_name
-        
-        log_mssg += f'Category_{inputs.category} Before get action {(time.time()-start):.3f}\n'
 
         # Get action
         while True:
@@ -573,28 +574,26 @@ class Recommend_core():
                 item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
                                                 action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
 
-                episode = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+                episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category)
+                
+                # Update reward of user
+                reward_per_user += reward 
 
-                log_mssg += f'Category_{inputs.category} Update buffer {(time.time()-start):.3f}\n'
             
             if self.is_suitable_action(curr_zero_list, action_index):
                 break
-        
-        log_mssg += f'Category_{inputs.category} After get action {(time.time()-start):.3f}\n'
 
         action_id = self.database.get_lessonID_in_topic(action_index, subject=inputs.subject, category=inputs.category, level=inputs.program_level, topic_name=curr_topic_name) # process from action index
        
         # Update info to database
         info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,        # depend on inputs
                     category=inputs.category, level = inputs.program_level, plan_name = inputs.plan_name,      # depend on inputs
-                    prev_score = prev_score, total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
+                    prev_score = prev_score, reward=reward_per_user, total_masteries=total_masteries, topic_masteries = masteries_of_topic, 
                     action_index = action_index, action_id = action_id, topic_name = curr_topic_name,  
                     init_score = init_score,flow_topic = flow_topic)
         
 
         self.database.write_to_DB(info)
-
-        log_mssg += f'Category_{inputs.category} Done writeDB {(time.time()-start):.3f}\n'
 
         return {inputs.category:action_id}, log_mssg
 
@@ -634,11 +633,7 @@ class Recommend_core():
         # Update buffer with thread-safety
         reward, done = category_model.env.step_api(total_step=item_relayBuffer.total_step, action=item_relayBuffer.action_index, observation_=item_relayBuffer.observation,       
                                                              num_items_inPool=item_relayBuffer.num_items_inPool, score=item_relayBuffer.score) 
-        # self.lock.acquire()
 
-        category_model.reward_per_episode += reward     
-
-        # self.lock.release()                               
         episode = category_model.items_shared.episode.value
 
         if done:
@@ -659,7 +654,7 @@ class Recommend_core():
         # Update relay_buffer
         category_model.items_shared.append_relayBuffer(item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                             reward, item_relayBuffer.next_observation, done)
-        return episode
+        return episode, reward
 
     def is_suitable_action(self, zero_list:list, action_index:int):
             return True if action_index in zero_list else False

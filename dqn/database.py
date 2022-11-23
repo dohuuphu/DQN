@@ -9,17 +9,19 @@ from threading import Lock
 # ============================= FORMATE WORSPAE =========================
 
 class Format_reader():
-    def __init__(self, total_topic:dict, topic_name:str, prev_action:int, zero_list:list, observation:list, total_step:int, num_items_inPool:int) -> None:
+    def __init__(self, total_topic:dict, topic_name:str, prev_action:int, prev_reward:int, zero_list:list, observation:list, total_step:int, num_items_inPool:int) -> None:
         self.total_topic = total_topic
         self.topic_name = topic_name
         self.prev_action = prev_action
+        self.prev_reward = prev_reward
         self.zero_list = zero_list
         self.observation = observation  
         self.total_step = total_step
         self.num_items_inPool = num_items_inPool
+        
 
 class User():
-    def __init__(self, user_id:str, user_mail:str, subject:str, category:str, level:int, plan_name:str,  total_masteries:dict, topic_masteries:dict, action_index:int, action_id:int, prev_score:int, topic_name:str, init_score:int = None, flow_topic:list=None) -> None:
+    def __init__(self, user_id:str, user_mail:str, subject:str, category:str, level:int, plan_name:str,  total_masteries:dict, topic_masteries:dict, action_index:int, action_id:int, prev_score:int, reward:int, topic_name:str, init_score:int = None, flow_topic:list=None) -> None:
         self.id = user_id
         self.mail = user_mail
         self.subject= subject
@@ -35,6 +37,7 @@ class User():
         self.action_index = int(action_index) if action_index is not None else None
         self.action_id = int(action_id) if action_id is not None else None
         self.prev_score = prev_score
+        self.reward = reward
 
         self.pool = {k: v for k, v in self.total_masteries.items() if v == 0}   # list zeros in mocktest
         
@@ -90,11 +93,15 @@ class Data_formater():
                 "action_recommend": self.user.action_index,
                 "action_ID": self.user.action_id,
                 "score": None,
+                "reward": 0,
                 "masteries":self.user.topic_masteries
             }
     
     def get_score_path(self, num_step:int):
         return f'category.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}.{num_step}.score'
+    
+    def get_reward_path(self, num_step:int):
+        return f'category.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}.{num_step}.reward'
 
 
     def get_step_path(self):
@@ -287,6 +294,7 @@ class MongoDb:
             prev_step:dict = dict_flow[prev_topic_name][-1]
             prev_action:int = prev_step['action_recommend']
             prev_masteries:dict = prev_step['masteries']
+            prev_reward:int = prev_step['reward']
 
             # Get total step in a flow
             total_step = -1 #step 0 is init value
@@ -299,8 +307,8 @@ class MongoDb:
       
         except: # new user
             total_topic = prev_topic_name = prev_action = zero_list = observation = total_step = num_items_inPool =None
-            
-        return Format_reader(total_topic, prev_topic_name, prev_action, zero_list, observation, total_step, num_items_inPool)
+            prev_reward = 0
+        return Format_reader(total_topic, prev_topic_name, prev_action, prev_reward, zero_list, observation, total_step, num_items_inPool)
 
     def write_to_DB(self, raw_info:User):
         start = time.time()
@@ -344,8 +352,8 @@ class MongoDb:
             self.user_db.update_one(user_indentify, {'$set':data.topic_info(prefix)})
 
         else:
-            self.update_prev_score(data)
             self.update_step(data)
+            self.update_prev_score_reward(data)
 
            
     def update_step(self, data:Data_formater):
@@ -355,13 +363,25 @@ class MongoDb:
         new_val = {"$push":{step_path : data.step_info()} }
         self.user_db.update_one(myquery, new_val)
 
-    def update_prev_score(self, data:Data_formater):
+    def update_prev_score_reward(self, data:Data_formater):
         myquery = {"user_id":data.user.id}
         doc = self.user_db.find(myquery)[0]
-        prev_step = len(doc['category'][data.user.category][data.user.level][data.user.plan_name]['flow'][data.user.topic_name]) - 1
+        curr_step = len(doc['category'][data.user.category][data.user.level][data.user.plan_name]['flow'][data.user.topic_name]) - 1
+        prev_step = curr_step - 1
+        
+        # Update prev_score
         score_path = data.get_score_path(prev_step)
-
         new_val = {"$set":{score_path : data.user.prev_score} }
+        self.user_db.update_one(myquery, new_val)
+
+        # Update pre_reward
+        reward_path = data.get_reward_path(prev_step)
+        new_val = {"$set":{reward_path : data.user.reward} }
+        self.user_db.update_one(myquery, new_val)
+    
+        # Update current_reward
+        reward_path = data.get_reward_path(curr_step)
+        new_val = {"$set":{reward_path : data.user.reward} }
         self.user_db.update_one(myquery, new_val)
 
 
