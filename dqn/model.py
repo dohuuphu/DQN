@@ -451,7 +451,7 @@ class Recommend_core():
         start = time.time()
         log_mssg = ''
         if len(inputs.masteries)>1 and 0 not in list(inputs.masteries.values()):
-                return   {inputs.category:"Done"} 
+            return {inputs.category:"Done"}, f'Category {inputs.category} is Done'
         # Processing input and store database
         data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.category, str(inputs.program_level), inputs.plan_name)
 
