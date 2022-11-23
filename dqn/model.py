@@ -156,7 +156,7 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
             if step_training.value - temp_step >= STEP_TRAIN and len(replay_memory)  >  MIN_REPLAY_SIZE:
                 temp_step = step_training.value
                 total_train_step+=1
-                logging.getLogger(SYSTEM_LOG).info(f'TRAINING{name}: AGENT_STEP {step_training.value} - LEARNER_STEP {total_train_step}')
+                logging.getLogger(SYSTEM_LOG).info(f'TRAINING {name}: AGENT_STEP {step_training.value} - LEARNER_STEP {total_train_step}')
                 
                 # Get random data and remove them in replay_memory
                 mini_batch = random.sample(replay_memory, BATCH_SIZE)
@@ -208,15 +208,15 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
                 try:
                     weight_Q[-1] = (model_weight)
                 except:
-                    logging.getLogger(SYSTEM_LOG).error(f'LEARNER| Copy weight from Model to Agent error at step {step_training.value}')
+                    logging.getLogger(SYSTEM_LOG).error(f'LEARNER| Copy weight from Model to Agent error at step {total_train_step}')
 
                 # Update weight            
                 if step_training.value - temp_update_target >= STEP_UPDATE_TARGETR_MODEL:
                     try:
-                        logging.getLogger(SYSTEM_LOG).info(f'LEARNER| Complete set weight TARGET_MODEL at step {step_training.value}')
+                        logging.getLogger(SYSTEM_LOG).info(f'LEARNER| Complete set weight TARGET_MODEL at step {total_train_step}')
                         target_model.set_weights(model_weight)
                     except :
-                        logging.getLogger(SYSTEM_LOG).error(f'LEARNER| ERROR set weight TARGET_MODEL at step {step_training.value}')
+                        logging.getLogger(SYSTEM_LOG).error(f'LEARNER| ERROR set weight TARGET_MODEL at step {total_train_step}')
                     temp_update_target = step_training.value 
                 
                 # Save weight
