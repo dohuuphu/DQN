@@ -55,8 +55,8 @@ INPROCESS = 'inprocess'
 PENDING = 'pending'
 
 ENGLISH = "English"
-GRAMMAR = ["Grammar", "1"]
-VOVABULARY = ["Vocabulary", "2"]
+GRAMMAR = ["Grammar", "2"]
+VOVABULARY = ["Vocabulary", "1"]
 
 MATH = "Math"
 ALGEBRA = ["Algebra"]

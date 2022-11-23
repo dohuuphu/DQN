@@ -142,6 +142,7 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
     temp_step = 0
     temp_episode = 0
     temp_update_target = 0
+    total_train_step = 0
 
     # Start Learning
     while True:
@@ -154,7 +155,8 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
         if step_training.value != 0:
             if step_training.value - temp_step >= STEP_TRAIN and len(replay_memory)  >  MIN_REPLAY_SIZE:
                 temp_step = step_training.value
-                logging.getLogger(SYSTEM_LOG).info(f'{name} at step {step_training.value} -> Start trainning')
+                total_train_step+=1
+                logging.getLogger(SYSTEM_LOG).info(f'TRAINING{name}: AGENT_STEP {step_training.value} - LEARNER_STEP {total_train_step}')
                 
                 # Get random data and remove them in replay_memory
                 mini_batch = random.sample(replay_memory, BATCH_SIZE)
