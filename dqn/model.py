@@ -358,7 +358,7 @@ class Recommend_core():
         model_predict = True
         # Calculate epsilon
         epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
-        if np.random.rand() <= epsilon and False:
+        if np.random.rand() <= epsilon:
             # Explore
             model_predict = False
             if np.random.choice([1,0],p=[0.3, 0.7]):    # Random value 1 or 0
