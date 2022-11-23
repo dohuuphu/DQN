@@ -70,7 +70,8 @@ class Subject_core():
 
     #     # if not isdir(path_model):
     #     self.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-    #     self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE)) 
+    #     # self.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
+    #     # self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE)) 
     
 
 def get_cachePath(name):
@@ -302,32 +303,53 @@ class Recommend_core():
         for proc in procs:
             proc.start()
 
-        self.english_Grammar.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-        # self.english_Grammar.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
+        
+        # self.english_Grammar.init_Agent()
+        # self.english_Vocabulary.init_Agent()
+        # self.math_Algebra.init_Agent()
+        # self.math_Geometry.init_Agent()
+        # self.math_Probability.init_Agent()
+        # self.math_Analysis.init_Agent()
+
+        try:
+            self.english_Grammar.agent = keras.models.load_model(join("weight", self.english_Grammar.name, MODEL_SAVE))
+        except:
+            self.english_Grammar.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+
         self.english_Grammar.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
         
-        self.english_Vocabulary.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-        self.english_Vocabulary.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-        self.english_Vocabulary.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        try:
+            self.english_Vocabulary.agent = keras.models.load_model(join("weight", self.english_Vocabulary.name, MODEL_SAVE))
+        except:
+            self.english_Vocabulary.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.english_Vocabulary.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Vocabulary.name, MODEL_SAVE)) 
         
-        self.math_Algebra.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-        self.math_Algebra.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-        self.math_Algebra.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        try:
+            self.math_Algebra.agent = keras.models.load_model(join("weight", self.math_Algebra.name, MODEL_SAVE))
+        except:
+            self.math_Algebra.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Algebra.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Algebra.name, MODEL_SAVE)) 
         
-        self.math_Geometry.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-        self.math_Geometry.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-        self.math_Geometry.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        try:
+            self.math_Geometry.agent = keras.models.load_model(join("weight", self.math_Geometry.name, MODEL_SAVE))
+        except:
+            self.math_Geometry.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Geometry.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Geometry.name, MODEL_SAVE)) 
         
-        self.math_Probability.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-        self.math_Probability.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-        self.math_Probability.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        try:
+            self.math_Probability.agent = keras.models.load_model(join("weight", self.math_Probability.name, MODEL_SAVE))
+        except:
+            self.math_Probability.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Probability.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Probability.name, MODEL_SAVE)) 
         
-        self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-        self.math_Analysis.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-        self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.english_Grammar.name, MODEL_SAVE)) 
+        try:
+            self.math_Analysis.agent = keras.models.load_model(join("weight", self.math_Analysis.name, MODEL_SAVE))
+        except:
+            self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Analysis.name, MODEL_SAVE)) 
         
     
-
+        K.clear_session()
     def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
@@ -582,6 +604,7 @@ class Recommend_core():
             weight = category_model.items_shared.weight[-1]
             if len(category_model.agent.get_weights()) == len(weight):
                 category_model.agent.set_weights(weight)
+                logging.getLogger(SYSTEM_LOG).info('DONE copy weight from LEARNER to AGENT')
             else:
                 logging.getLogger(SYSTEM_LOG).error('None copy weight from LEARNER to AGENT')
 
