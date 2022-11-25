@@ -353,19 +353,23 @@ class Recommend_core():
     
         # K.clear_session()
 
-    def predict_action(self, category:str, observation:list, topic_number:int, episode:int, zero_list:list, prev_action:int=None):
+    def predict_action(self, category:str, observation:list, topic_number:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
         min_epsilon = 0.01 # At a minimum, we'll always explore 1% of the time
         decay = 0.01
         action = None
         model_predict = 'model'
+
+        # Select model
+        category_model:Subject_core = self.select_model(category)
+
         # Calculate epsilon
-        epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * episode)
+        epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay * category_model.items_shared.episode.value)
 
         if np.random.rand() <= epsilon:
             # Explore
             model_predict = 'rand_explore'
-            if np.random.choice([1,0],p=[0.3, 0.7]):    # Random value 1 or 0
+            if np.random.choice([1,0],p=[0.7, 0.3]):    # Random value 1 or 0
                 action = random.randint(0, len(observation) - 1)
             else:
                 index = random.randint(0, len(zero_list) - 1)
@@ -376,9 +380,6 @@ class Recommend_core():
             topic_number = int(topic_number)
             observation:np.ndarray = np.array(observation)
             encoded_reshaped = observation.reshape([1, observation.shape[0]])
-
-            # Select model
-            category_model:Subject_core = self.select_model(category)
 
             self.update_weight(category_model)
             # category_model.event_copy_weight.wait()
@@ -459,7 +460,6 @@ class Recommend_core():
         init_score = None
         prev_score = None
         plan_done = False
-        episode = 0
 
         reward_per_user = data_readed.prev_reward
 
@@ -508,7 +508,7 @@ class Recommend_core():
                                                 action_index=data_readed.prev_action, next_observation=curr_observation,
                                                 score=inputs.score, num_items_inPool=data_readed.num_items_inPool)
 
-            episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category, curr_reward=reward_per_user)
+            reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category, curr_reward=reward_per_user)
             # Update reward of user
             reward_per_user += reward
 
@@ -560,7 +560,7 @@ class Recommend_core():
 
         # Get action
         while True:
-            action_index, model_predict_flag = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, episode=episode, zero_list=curr_zero_list, prev_action=prev_action)
+            action_index, model_predict_flag = self.predict_action(category=inputs.category, observation=curr_observation, topic_number=curr_topic_id, zero_list=curr_zero_list, prev_action=prev_action)
             
             # Update new action to prev_action
             prev_action = action_index
@@ -575,7 +575,7 @@ class Recommend_core():
                 item_relayBuffer = Item_relayBuffer(total_step= data_readed.total_step, observation=curr_observation, topic_id=curr_topic_id, 
                                                 action_index=action_index, next_observation=curr_observation, num_items_inPool=data_readed.num_items_inPool) # score = None
 
-                episode, reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category, curr_reward=reward_per_user)
+                reward = self.update_relayBuffer(item_relayBuffer, category=inputs.category, curr_reward=reward_per_user)
                 
                 # Update reward of user
                 reward_per_user += reward 
@@ -640,6 +640,9 @@ class Recommend_core():
         if done:
             episode += 1
 
+            # Update new episode value
+            category_model.items_shared.episode.value = episode
+
             # Write total reward in a episode to tensorboard
             with category_model.train_summary_writer.as_default():
                 tf.summary.scalar('reward', (curr_reward+reward), step=episode)
@@ -653,7 +656,7 @@ class Recommend_core():
         # Update relay_buffer
         category_model.items_shared.append_relayBuffer(item_relayBuffer.observation, item_relayBuffer.topic_id, item_relayBuffer.action_index, 
                                             reward, item_relayBuffer.next_observation, done)
-        return episode, reward
+        return reward
 
     def is_suitable_action(self, zero_list:list, action_index:int):
             return True if action_index in zero_list else False
