@@ -392,7 +392,7 @@ class Recommend_core():
             # Random action after explore 
             if prev_action == action:
                 model_predict = 'rand_exploit'
-                action = random.choice(zero_list)
+                action =  random.randint(0, len(observation) - 1)
         
         # K.clear_session()
             
