@@ -449,7 +449,7 @@ class MongoDb:
 
             self.user_db.update_one(myquery, {'$set':value})
         except:
-            logging.getLogger(SYSTEM_LOG).error(f"{data.user.mail}_{data.user.category}_{data.user.level}_{topic_name}update total topic was FAILED")
+            logging.getLogger(SYSTEM_LOG).error(f"{data.user.mail}_{data.user.category}_{data.user.level} update total topic was FAILED")
 
     def is_userExist(self, user:User):
         num_doc = self.user_db.count_documents({"user_id":user.id})
