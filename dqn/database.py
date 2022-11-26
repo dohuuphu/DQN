@@ -446,9 +446,10 @@ class MongoDb:
 
                 # Update total_topic value, topic_masteries is init masteries
                 value = {f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
-
-                self.user_db.update_one(myquery, {'$set':value})
-                logging.getLogger(SYSTEM_LOG).error(f"Error set total masteries {data.user.mail}_{data.user.category}_{data.user.level}_{topic_name}: {topic_masteries}")
+                try:
+                    self.user_db.update_one(myquery, {'$set':value})
+                except:
+                    logging.getLogger(SYSTEM_LOG).error(f"Error set total masteries {data.user.mail}_{data.user.category}_{data.user.level}_{topic_name}: {topic_masteries}")
         except:
             logging.getLogger(SYSTEM_LOG).error(f"{data.user.mail}_{data.user.category}_{data.user.level} update total topic: query user Failed")
 
