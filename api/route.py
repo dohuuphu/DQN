@@ -44,7 +44,7 @@ def route_setup(app, RL_model):
 
     def execute_api(item: Item):
 
-        info = f'IN_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}|prev_score: {item.score}| masteries: {item.masteries}'
+        info = f'IN_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}_{item.plan_name}|prev_score: {item.score}| masteries: {item.masteries}'
         logging.getLogger(RECOMMEND_LOG).info(info)
         try:
             (result, mssg), infer_time = RL_model.get_learning_point(item)
@@ -54,7 +54,7 @@ def route_setup(app, RL_model):
         # Logging
         endline = f'='*80
         tab = f'\t'*8
-        info = f"OUT_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}|prev_score: {item.score}| masteries: {item.masteries}\n{mssg}{tab}result {result}\n{tab}process_time: {infer_time:.3f}s\n{endline}\n"
+        info = f"OUT_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}_{item.plan_name}|prev_score: {item.score}| masteries: {item.masteries}\n{mssg}{tab}result {result}\n{tab}process_time: {infer_time:.3f}s\n{endline}\n"
         logging.getLogger(RECOMMEND_LOG).info(info)
 
 
