@@ -431,22 +431,21 @@ class Recommend_core():
         # Arrange LPD to correct_category, Math only
         parsed_inputs:list = self.arrange_usage_category(item=input)
 
-        # Run with multi-threading
         results = {}
         mssgs = ''
-        with ThreadPoolExecutor() as executor:
-            for result, mssg in executor.map(self.process_learningPath, parsed_inputs):
-                results.update(result)
-                mssgs += mssg
+        # Run with multi-threading
+        # with ThreadPoolExecutor() as executor:
+        #     for result, mssg in executor.map(self.process_learningPath, parsed_inputs):
+        #         results.update(result)
+        #         mssgs += mssg
 
         # Run with sequence
-        # for inputs in parsed_inputs:
-        #     results.update(self.process_learningPath(inputs))
+        for inputs in parsed_inputs:
+            result, mssg = self.process_learningPath(inputs)
+            results.update(result)
+            mssgs += mssg
 
         return results, mssgs
-
-    # Interact with user_data => using category as subject
-    # Interact with user_data => usingg category as category
 
     def process_learningPath(self, inputs:Item): 
         start = time.time()
@@ -593,7 +592,6 @@ class Recommend_core():
                     action_index = action_index, action_id = action_id, topic_name = curr_topic_name,  
                     init_score = init_score,flow_topic = flow_topic)
         
-
         self.database.write_to_DB(info)
 
         return {inputs.category:action_id}, log_mssg
