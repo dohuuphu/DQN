@@ -9,10 +9,11 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 
-from os.path import join, dirname, abspath, isdir
 from tensorflow import keras
 from collections import deque
 from threading import Lock, Event
+from multiexit import install, register
+from os.path import join, dirname, abspath, isdir
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process, Manager, Queue, Value, Lock
 
@@ -66,14 +67,7 @@ class Subject_core():
 
         self.train_summary_writer = None
     
-    # def init_Agent(self):
-    #     path_model = join("weight", self.name, MODEL_SAVE)
 
-    #     # if not isdir(path_model):
-    #     self.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
-    #     # self.agent.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-    #     # self.train_summary_writer = tf.summary.create_file_writer(join("logs", self.name, MODEL_SAVE)) 
-    
 
 def get_cachePath(name):
         # MATH categories
@@ -95,7 +89,7 @@ def get_cachePath(name):
         return cache_path 
 
 def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_id_Q:Queue, action_index_Q:Queue, reward_Q:Queue, next_observation_Q:Queue, done_Q:Queue, weight_Q,embedding):
-
+    
     # Init Learner model
     path_model = join("weight", name, MODEL_SAVE)
 
@@ -106,11 +100,6 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
         model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
     else:
-        # model = Agent(STATE_ACTION_SPACE, embedding)
-        # target_model = Agent(STATE_ACTION_SPACE, embedding)
-
-        # model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
-        # target_model.compile(loss=tf.keras.losses.Huber(), optimizer=tf.keras.optimizers.Adam(lr=0.001), metrics=['accuracy'])
         logging.getLogger(SYSTEM_LOG).info(f'Load pretrained from {path_model}')
         model = keras.models.load_model(path_model)
         target_model = keras.models.load_model(path_model)
@@ -128,11 +117,11 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
             return deque(maxlen=10000)
 
     replay_memory:deque = load_relayBuffer()
-
+    
+    @register
     def cache_relayBuffer():
         save_pkl(replay_memory, cache_path)
 
-    atexit.register(cache_relayBuffer)
 
     # Logger of tensorboard
     train_summary_writer = tf.summary.create_file_writer(join("logs", name, MODEL_SAVE)) 
@@ -228,11 +217,14 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
 
 class Recommend_core():
     def __init__(self, learning_rate=0.001):
+
+        install() # Init exits event
+
         self.lock = Lock()
 
         self.database = MongoDb()    
 
-        self.embedding = keras.layers.Embedding(NUM_TOPIC, 32, input_length=1, trainable=False)
+        self.embedding = keras.layers.Embedding(NUM_TOPIC, 32, input_length=1, trainable=False) # need define topic_embeddings are separate from  category -> change hash topic_id
 
         self.english_Grammar = Subject_core(name=GRAMMAR, learning_rate=learning_rate, embedding=self.embedding)
         self.english_Vocabulary = Subject_core(name=VOVABULARY, learning_rate=learning_rate, embedding=self.embedding)
@@ -314,6 +306,7 @@ class Recommend_core():
         # self.math_Probability.init_Agent()
         # self.math_Analysis.init_Agent()
 
+        # Init and load model for agent
         try:
             self.english_Grammar.agent = keras.models.load_model(join("weight", self.english_Grammar.name, MODEL_SAVE))
         except:
@@ -351,7 +344,13 @@ class Recommend_core():
             self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
         self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Analysis.name, MODEL_SAVE)) 
     
-        # K.clear_session()
+        # Register a cleaner using a decorator
+        @register
+        def clean_main():
+            for proc in procs:
+                proc.terminate()
+                proc.join()
+
 
     def predict_action(self, category:str, observation:list, topic_number:int, zero_list:list, prev_action:int=None):
         max_epsilon = 1 # You can't explore more than 100% of the time
