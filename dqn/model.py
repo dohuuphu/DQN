@@ -489,7 +489,7 @@ class Recommend_core():
             masteries_of_topic:dict = self.database.get_topic_masteries(user_id=inputs.user_id, subject=inputs.subject, category=inputs.category, level=inputs.program_level, 
                                                                     topic_name=data_readed.topic_name, total_masteries=total_masteries) # process from masteries_of_test
             if masteries_of_topic is None:
-                log_mssg += f'Category_{inputs.category} Topic is Error, masteries_of_topic\n'
+                log_mssg += f'Category_{inputs.category} get topic masteries was failed\n'
                 return   {inputs.category:"error"}, log_mssg  
 
             # Match raw_observ to standard_observ (equal to action_space)

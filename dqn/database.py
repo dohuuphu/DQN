@@ -211,19 +211,17 @@ class MongoDb:
         '''
             Get and update value of  masteries_topic from total masteries
         '''
-        
-        topic_masteries = None
         try:
             topic_masteries:dict = self.content_data[subject][level][category][topic_name].copy()
             for lesson_id in total_masteries:
                 if lesson_id in topic_masteries:
                     topic_masteries[lesson_id] = int(total_masteries[lesson_id]) # Update masteries from total to topic
-            
-
+        
         except:
             info = f'{user_id}_{subject}_{level}_{topic_name} get topic masteries FAILED'
             logging.getLogger(SYSTEM_LOG).error(info)
-
+            topic_masteries = None
+            
         return  topic_masteries
 
     def get_topic_id(self,  subject:str, level:str, topic_name:str)->int:
@@ -419,17 +417,21 @@ class MongoDb:
 
             value = {f'category.{category}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
 
+            # Update total_masteries field
+            self.user_db.update_one({'user_id': user_id}, {'$set':value})
+
+            # Get all LDP (total_masteries) exist in course
+            doc = self.user_db.find({'user_id': user_id })[0]
+            total_masteries:dict = doc['category'][category][level][plan_name]['total_masteries']
+
         # Backend masteries > 1 LDP = > new plan (mock test) => create total masteries
         else: # Update total values
-            value = {f'category.{category}.{level}.{plan_name}.total_masteries':BE_masteies}
-            print("====== WARNING: needd to review, in a exist plan, why  BE_masteries > 1 LDP")
-
-        # Update total_masteries field
-        self.user_db.update_one({'user_id': user_id }, {'$set':value})
+            # value = {f'category.{category}.{level}.{plan_name}.total_masteries':BE_masteies}
+            logging.getLogger(SYSTEM_LOG).error("In an exist plan, BE_masteries > 1 LDP")
+            total_masteries = None
+       
         
-        # Get all LDP (total_masteries) exist in course
-        doc = self.user_db.find({'user_id': user_id })[0]
-        total_masteries:dict = doc['category'][category][level][plan_name]['total_masteries']
+        
         
         return total_masteries
 
