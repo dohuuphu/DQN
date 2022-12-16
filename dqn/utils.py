@@ -112,3 +112,4 @@ def rawObservation_to_standarObservation(raw_observation:list, topic:str)->list:
             standar_observation[id] = val
 
         return standar_observation
+

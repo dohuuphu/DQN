@@ -54,18 +54,36 @@ DONE = 'done'
 INPROCESS = 'inprocess'
 PENDING = 'pending'
 
+# CATEGORY
+C_VISUALE_NAME = 0
+C_REAL_NAME = 1
 ENGLISH = "English"
 GRAMMAR = ["Grammar", "2"]
 VOVABULARY = ["Vocabulary", "1"]
 
 MATH = "Math"
-ALGEBRA = ["Algebra"]
-GEOMETRY = ["Geometry"]
-PROBABILITY= ["Probability_statistics"]
-ANALYSIS = ["Analysis"]
+ALGEBRA = ["Algebra", "000"]
+GEOMETRY = ["Geometry", "000"]
+PROBABILITY= ["Probability_statistics", "000"]
+ANALYSIS = ["Analysis", "000"]
+TOTAL_SUBJECT = [MATH, ENGLISH]
+TOTAL_LEVEL = [10, 11,]
 
-TOTAL_SUBJECT=[MATH, ENGLISH]
-
+# Name in database
+USER_ID = "user_id"
+USER_GMAIL = "user_gmail"
+CATEGORY = "category"
+STATUS = "status"
+POOL = "pool"
+TOTAL_TOPIC = "total_topic"
+TOTAL_MASTERIES = "total_masteries"
+INIT_SCORE = "init_score"
+FLOW = "flow"
+ACTION_RECOMMEND = "action_recommend"
+ACTION_ID = "action_ID"
+SCORE = "score"
+REWARD = "reward"
+MASTERIES = "masteries"
 
 # Cache file
 GRAMMAR_R_BUFFER = "cache/Grammar_relay_buffer.pickle"

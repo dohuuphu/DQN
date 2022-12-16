@@ -7,7 +7,6 @@ from dqn.variables import *
 from threading import Lock
 
 # ============================= FORMATE WORSPAE =========================
-
 class Format_reader():
     def __init__(self, total_topic:dict, topic_name:str, prev_action:int, prev_reward:int, zero_list:list, observation:list, total_step:int, num_items_inPool:int) -> None:
         self.total_topic = total_topic
@@ -49,9 +48,9 @@ class Data_formater():
     
     def user_info(self):
         return {
-            "user_id": self.user.id,
-            "user_gmail": self.user.mail,
-            "category": self.category_info()
+            USER_ID: self.user.id,
+            USER_GMAIL: self.user.mail,
+            CATEGORY: self.category_info()
             }
     
     def category_info(self, prefix:str=None):
@@ -65,12 +64,12 @@ class Data_formater():
     def path_info(self, prefix:str=None):
         key = f'{prefix}.{self.user.plan_name}' if prefix else self.user.plan_name
         return {key:{
-                        "status": self.user.path_status,
-                        "pool": self.user.pool,
-                        "total_topic": self.total_topic_info(),
-                        "total_masteries": self.user.total_masteries,
-                        "init_score": self.user.init_score,
-                        "flow": self.topic_info()
+                        STATUS: self.user.path_status,
+                        POOL: self.user.pool,
+                        TOTAL_TOPIC: self.total_topic_info(),
+                        TOTAL_MASTERIES: self.user.total_masteries,
+                        INIT_SCORE: self.user.init_score,
+                        FLOW: self.topic_info()
                     }}
     
     def total_topic_info(self):
@@ -90,22 +89,22 @@ class Data_formater():
 
     def step_info(self):
         return {
-                "action_recommend": self.user.action_index,
-                "action_ID": self.user.action_id,
-                "score": None,
-                "reward": 0,
-                "masteries":self.user.topic_masteries
+                ACTION_RECOMMEND: self.user.action_index,
+                ACTION_ID: self.user.action_id,
+                SCORE: None,
+                REWARD: 0,
+                MASTERIES:self.user.topic_masteries
             }
     
     def get_score_path(self, num_step:int):
-        return f'category.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}.{num_step}.score'
+        return f'{CATEGORY}.{self.user.category}.{self.user.level}.{self.user.plan_name}.{FLOW}.{self.user.topic_name}.{num_step}.{SCORE}'
     
     def get_reward_path(self, num_step:int):
-        return f'category.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}.{num_step}.reward'
+        return f'{CATEGORY}.{self.user.category}.{self.user.level}.{self.user.plan_name}.{FLOW}.{self.user.topic_name}.{num_step}.{REWARD}'
 
 
     def get_step_path(self):
-        return f'category.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}'
+        return f'{CATEGORY}.{self.user.category}.{self.user.level}.{self.user.plan_name}.flow.{self.user.topic_name}'
     
 # ============================= DATABASE WORSPACE =========================
 
@@ -152,7 +151,7 @@ class MongoDb:
         return user_info
 
     def is_newUser(self, user_id:int)->bool:
-        num_doc = self.user_db.count_documents({"user_id":user_id})
+        num_doc = self.user_db.count_documents({USER_ID:user_id})
         if num_doc  == 0:
             # logging.getLogger(SYSTEM_LOG).info(f"New user {user_id} ")
             return True
@@ -161,9 +160,9 @@ class MongoDb:
     
     def is_newcategory(self, user:User)->bool:
         try: # Incase user doesn't have path before
-            myquery = {"user_id":user.id}
+            myquery = {USER_ID:user.id}
             doc = self.user_db.find(myquery)[0]
-            exist_path = list(doc['category'].keys())
+            exist_path = list(doc[CATEGORY].keys())
             if user.category not in exist_path:
                 return True
         except:
@@ -173,9 +172,9 @@ class MongoDb:
 
     def is_newLevel(self, user:User)->bool:
         try: # Incase user doesn't have path before
-            myquery = {"user_id":user.id}
+            myquery = {USER_ID:user.id}
             doc = self.user_db.find(myquery)[0]
-            exist_path = list(doc['category'][user.category].keys())
+            exist_path = list(doc[CATEGORY][user.category].keys())
             if user.level not in exist_path:
                 return True
         except:
@@ -185,9 +184,9 @@ class MongoDb:
 
     def is_newPath(self, user:User)->bool:
         try: # Incase user doesn't have path before
-            myquery = {"user_id":user.id}
+            myquery = {USER_ID:user.id}
             doc = self.user_db.find(myquery)[0]
-            exist_path = list(doc['category'][user.category][user.level].keys())
+            exist_path = list(doc[CATEGORY][user.category][user.level].keys())
             if user.plan_name not in exist_path:
                 return True
         except:
@@ -197,9 +196,9 @@ class MongoDb:
     
     def is_newTopic(self, user:User)->bool:
         try: 
-            myquery = {"user_id":user.id}
+            myquery = {USER_ID:user.id}
             doc = self.user_db.find(myquery)[0]
-            exist_path = list(doc['category'][user.category][user.level][user.plan_name]['flow'].keys())
+            exist_path = list(doc[CATEGORY][user.category][user.level][user.plan_name][FLOW].keys())
             if user.topic_name not in exist_path:
                 return True
         except:
@@ -207,27 +206,15 @@ class MongoDb:
 
         return False
 
-    def get_topic_masteries(self, user_id:str, subject:str, category:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
-        '''
-            Get and update value of  masteries_topic from total masteries
-        '''
-        try:
-            topic_masteries:dict = self.content_data[subject][level][category][topic_name].copy()
-            for lesson_id in total_masteries:
-                if lesson_id in topic_masteries:
-                    topic_masteries[lesson_id] = int(total_masteries[lesson_id]) # Update masteries from total to topic
-        
-        except:
-            info = f'{user_id}_{subject}_{level}_{topic_name} get topic masteries FAILED'
-            logging.getLogger(SYSTEM_LOG).error(info)
-            topic_masteries = None
-            
-        return  topic_masteries
-
-    def get_topic_id(self,  subject:str, level:str, topic_name:str)->int:
-        key = f'{subject}_{level}_{topic_name}'
-        return int(self.content_id[key])
-    
+    def is_userExist(self, user:User):
+        num_doc = self.user_db.count_documents({USER_ID:user.id})
+        if num_doc  == 1:
+            return True
+        else:
+            if num_doc > 1:
+                logging.getLogger(SYSTEM_LOG).error(f"Confict {num_doc} doc, user {user.id} ")
+        return False
+  
     def prepare_flow_topic(self, subject:str, level:str, total_masteries:dict=None)->list:
         '''
             Repare topic_flow and return curr_topic value
@@ -270,29 +257,17 @@ class MongoDb:
         
         return sorted(filter_topic_weight.items(), key=lambda item: item[1], reverse=True) # sort value High -> Low  [(key,val), (key,val),...]
 
-    def get_topic_info(self, subject:str, level:str, lesson_id:str):
-        '''
-            Get topic_name and topic_masteries from lesson_id      
-        '''
-        content = self.content_data[subject][level].copy()
-        for category in content:
-            for topic_name in content[category]:
-                if lesson_id in list(content[category][topic_name].keys()):
-                    return topic_name, content[category][topic_name].copy()
-
-        return None, None
-
     def read_from_DB(self, user_id:str, category:str, level:str, plan_name:str):      
         try:
-            doc = self.user_db.find({'user_id': user_id })[0]
-            total_topic:dict = doc['category'][category][level][plan_name]['total_topic']
-            dict_flow = doc['category'][category][level][plan_name]['flow']
-            num_items_inPool:int = len(doc['category'][category][level][plan_name]['pool'])
+            doc = self.user_db.find({USER_ID: user_id })[0]
+            total_topic:dict = doc[CATEGORY][category][level][plan_name][TOTAL_TOPIC]
+            dict_flow = doc[CATEGORY][category][level][plan_name][FLOW]
+            num_items_inPool:int = len(doc[CATEGORY][category][level][plan_name][POOL])
             prev_topic_name:str = list(dict_flow.keys())[-1]
             prev_step:dict = dict_flow[prev_topic_name][-1]
-            prev_action:int = prev_step['action_recommend']
-            prev_masteries:dict = prev_step['masteries']
-            prev_reward:int = prev_step['reward']
+            prev_action:int = prev_step[ACTION_RECOMMEND]
+            prev_masteries:dict = prev_step[MASTERIES]
+            prev_reward:int = prev_step[REWARD]
 
             # Get total step in a flow
             total_step = -1 #step 0 is init value
@@ -316,7 +291,7 @@ class MongoDb:
         # Formated data 
         data = Data_formater(parsed_user)
 
-        user_indentify = {'user_id': data.user.id }
+        user_indentify = {USER_ID: data.user.id }
 
         if self.is_newUser(data.user.id):
             self.user_db.insert_one(data.user_info())
@@ -325,46 +300,46 @@ class MongoDb:
             self.update_total_topic(data=data)
 
         elif self.is_newcategory(data.user):
-            prefix = 'category'
+            prefix = CATEGORY
             self.user_db.update_one(user_indentify, {'$set':data.category_info(prefix)})
 
             # Update total_topic_value
             self.update_total_topic(data=data)
 
         elif self.is_newLevel(data.user):
-            prefix = f'category.{data.user.category}'
+            prefix = f'{CATEGORY}.{data.user.category}'
             self.user_db.update_one(user_indentify, {'$set':data.level_info(prefix)})
 
             # Update total_topic_value
             self.update_total_topic(data=data)
 
         elif self.is_newPath(data.user):
-            prefix = f'category.{data.user.category}.{data.user.level}'
+            prefix = f'{CATEGORY}.{data.user.category}.{data.user.level}'
             self.user_db.update_one(user_indentify, {'$set':data.path_info(prefix)})
             
             # Update total_topic_value
             self.update_total_topic(data=data)
 
         elif self.is_newTopic(data.user):
-            prefix = f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.flow'
+            prefix = f'{CATEGORY}.{data.user.category}.{data.user.level}.{data.user.plan_name}.{FLOW}'
             self.user_db.update_one(user_indentify, {'$set':data.topic_info(prefix)})
 
         else:
             self.update_step(data)
             self.update_prev_score_reward(data)
 
-           
+
     def update_step(self, data:Data_formater):
-        myquery = {"user_id":data.user.id}
+        myquery = {USER_ID:data.user.id}
         step_path = data.get_step_path()
 
         new_val = {"$push":{step_path : data.step_info()} }
         self.user_db.update_one(myquery, new_val)
 
     def update_prev_score_reward(self, data:Data_formater, update_lastest=False):
-        myquery = {"user_id":data.user.id}
+        myquery = {USER_ID:data.user.id}
         doc = self.user_db.find(myquery)[0]
-        curr_step = len(doc['category'][data.user.category][data.user.level][data.user.plan_name]['flow'][data.user.topic_name]) - 1
+        curr_step = len(doc[CATEGORY][data.user.category][data.user.level][data.user.plan_name][FLOW][data.user.topic_name]) - 1
         prev_step = curr_step - 1
         
         if update_lastest:
@@ -393,17 +368,15 @@ class MongoDb:
             new_val = {"$set":{reward_path : data.user.reward}}
             self.user_db.update_one(myquery, new_val)
 
-
-
     def update_interuptedPlan(self, user_id:str, category:str, level:str, curr_plan_name:str):
         try:
-            doc = self.user_db.find({'user_id': user_id })[0]
-            exist_plan = list(doc['category'][category][level].keys())
+            doc = self.user_db.find({USER_ID: user_id })[0]
+            exist_plan = list(doc[CATEGORY][category][level].keys())
 
             # Update DONE plane
             if curr_plan_name in exist_plan:
-                value = {f'category.{category}.{level}.{curr_plan_name}.status' : DONE}
-                self.user_db.update_one({'user_id': user_id }, {'$set':value})
+                value = {f'{CATEGORY}.{category}.{level}.{curr_plan_name}.status' : DONE}
+                self.user_db.update_one({USER_ID: user_id }, {'$set':value})
 
             # Log info new path with interuption
         except: # new user
@@ -415,39 +388,36 @@ class MongoDb:
             lesson_id = list(BE_masteies.keys())[0]
             lesson_value = list(BE_masteies.values())[0]
 
-            value = {f'category.{category}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
+            value = {f'{CATEGORY}.{category}.{level}.{plan_name}.total_masteries.{lesson_id}':lesson_value}
 
             # Update total_masteries field
-            self.user_db.update_one({'user_id': user_id}, {'$set':value})
+            self.user_db.update_one({USER_ID: user_id}, {'$set':value})
 
             # Get all LDP (total_masteries) exist in course
-            doc = self.user_db.find({'user_id': user_id })[0]
-            total_masteries:dict = doc['category'][category][level][plan_name]['total_masteries']
+            doc = self.user_db.find({USER_ID: user_id })[0]
+            total_masteries:dict = doc[CATEGORY][category][level][plan_name][TOTAL_MASTERIES]
 
         # Backend masteries > 1 LDP = > new plan (mock test) => create total masteries
         else: # Update total values
-            # value = {f'category.{category}.{level}.{plan_name}.total_masteries':BE_masteies}
+            # value = {f'{CATEGORY}.{category}.{level}.{plan_name}.total_masteries':BE_masteies}
             logging.getLogger(SYSTEM_LOG).error("In an exist plan, BE_masteries > 1 LDP")
             total_masteries = None
        
-        
-        
-        
         return total_masteries
 
     def update_total_topic(self, data:Data_formater):
         # using 1 time when init new user
         # Get total topic name
         try:
-            myquery = {"user_id":data.user.id}
+            myquery = {USER_ID:data.user.id}
             doc = self.user_db.find(myquery)[0]
-            total_topic:dict = doc['category'][data.user.category][data.user.level][data.user.plan_name]['total_topic']
+            total_topic:dict = doc[CATEGORY][data.user.category][data.user.level][data.user.plan_name][TOTAL_TOPIC]
 
             for topic_name in total_topic:
                 topic_masteries:dict = self.get_topic_masteries(user_id=data.user.id,subject=data.user.subject, category=data.user.category, level=data.user.level, topic_name=topic_name, total_masteries=data.user.total_masteries)
 
                 # Update total_topic value, topic_masteries is init masteries
-                value = {f'category.{data.user.category}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
+                value = {f'{CATEGORY}.{data.user.category}.{data.user.level}.{data.user.plan_name}.total_topic.{topic_name}':topic_masteries}
                 try:
                     self.user_db.update_one(myquery, {'$set':value})
                 except:
@@ -455,27 +425,45 @@ class MongoDb:
         except:
             logging.getLogger(SYSTEM_LOG).error(f"{data.user.mail}_{data.user.category}_{data.user.level} update total topic: query user Failed")
 
-    def is_userExist(self, user:User):
-        num_doc = self.user_db.count_documents({"user_id":user.id})
-        if num_doc  == 1:
-            return True
-        else:
-            if num_doc > 1:
-                logging.getLogger(SYSTEM_LOG).error(f"Confict {num_doc} doc, user {user.id} ")
-        return False
+    
+    def get_topic_info(self, subject:str, level:str, lesson_id:str):
+        '''
+            Get topic_name and topic_masteries from lesson_id      
+        '''
+        content = self.content_data[subject][level].copy()
+        for category in content:
+            for topic_name in content[category]:
+                if lesson_id in list(content[category][topic_name].keys()):
+                    return topic_name, content[category][topic_name].copy()
 
-    def get_plan_status(self, user_id:str, category:str, level:str, plan_name:str):
-        # message = ''
-        # try:
-        #     myquery = {"user_id":user_id}
-        #     doc = self.user_db.find(myquery)[0]
-        #     plan_status:str = doc['category'][category][level][plan_name]['status']
-        #     status = True if plan_status == DONE else False
+        return None, None
+
+    def get_topic_masteries(self, user_id:str, subject:str, category:str, level:str, topic_name:str=None, total_masteries:dict=None)->dict:
+        '''
+            Get and update value of  masteries_topic from total masteries
+        '''
+        try:
+            topic_masteries:dict = self.content_data[subject][level][category][topic_name].copy()
+            for lesson_id in total_masteries:
+                if lesson_id in topic_masteries:
+                    topic_masteries[lesson_id] = int(total_masteries[lesson_id]) # Update masteries from total to topic
+        
+        except:
+            info = f'{user_id}_{subject}_{level}_{topic_name} get topic masteries FAILED'
+            logging.getLogger(SYSTEM_LOG).error(info)
+            topic_masteries = None
             
-        #     return status, message
-        # except:
-        #     message =  'Learning path is not exist'
-        #     return False, message
+        return  topic_masteries
+
+    def get_topic_id(self,  subject:str, level:str, topic_name:str)->int:
+        key = f'{subject}_{level}_{topic_name}'
+        return int(self.content_id[key])
+    
+    def get_plan_status(self, user_id:str, category:str, level:str, plan_name:str):
+        '''
+        Check status of a mocktest:
+            Number value = 1.0 / total_masteries ( total existed lesson in mocktest)
+        '''
         try:
             result = {}
             activate_mocktests:dict = self.get_activate_mocktests_ofUser(user_id, level, plan_name)
@@ -484,12 +472,12 @@ class MongoDb:
             for category in activate_mocktests:
                 
 
-                total_masteries_value:list = list(activate_mocktests[category]['total_masteries'].values())
+                total_masteries_value:list = list(activate_mocktests[category][TOTAL_MASTERIES].values())
                 num_ones = total_masteries_value.count(1.0)
                 percent_category = float(num_ones/len(total_masteries_value))*100
                 done_percent += percent_category
             
-                result.update({category : {"status": activate_mocktests[category]['status'],
+                result.update({category : {"status": activate_mocktests[category][STATUS],
                                             "percent" : percent_category}})
                 
             done_percent = int(done_percent/len(activate_mocktests))
@@ -498,12 +486,10 @@ class MongoDb:
             result = "User does not exist!!!"
         return result
                     
-
-
     def get_activate_mocktests_ofUser(self, user_id:str, level:str, plan_name:str)->dict:
-        myquery = {"user_id":user_id}
+        myquery = {USER_ID:user_id}
         doc = self.user_db.find(myquery)[0]
-        content = doc['category'].copy()
+        content = doc[CATEGORY].copy()
         all_categorys = list(content.keys())
 
         activate_mocktests = {}
@@ -526,18 +512,6 @@ class MongoDb:
 
         action_id = lesson_id_in_topic[action_index]
 
-        # if subject == MATH:
-        #     lesson_id_in_topic = list(content[category][topic_name].keys())
-        #     action_id = lesson_id_in_topic[action_index]
-
-        # elif subject == ENGLISH:    # Because English don't split category
-        #     # content = doc[subject][level].copy()
-        #     # Get category contain topic_name
-        #     for category_ in content:
-        #         if topic_name in list(content[category_].keys()):
-        #             lesson_id_in_topic = list(content[category_][topic_name].keys())
-        #             action_id = lesson_id_in_topic[action_index]   
-
         return action_id
     
     def get_LPD_in_category(self, subject:str, level:str)->dict:
@@ -557,48 +531,15 @@ class MongoDb:
         return category_LDP
             
 
+    # =============================== VISUALIZE ===============================
+
+    def get_all_userInfor(self):
+        all_userDoc = self.user_db.find()
+        for user_doc in all_userDoc:
+            yield user_doc
 
 
 if __name__ == "__main__":
     database = MongoDb()
-
-    # flow = database.prepare_flow_topic(subject='English', level='11', total_masteries={'32':'1', '36':'0', '9':'0', '18':'0'})
-    # print(flow)
-
-    # readed_data:Format_reader = database.read_from_DB(user_id="3",subject='English', level='10', plan_name='mocktest_1')
-    # print(readed_data)
-    #new user
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":1, "11":1, "12":0}, action_index=1, action_id=1, prev_score=None, topic_name="topic_2", init_score = 4, flow_topic= ['topic_2', 'topic_1', 'topic_3'], plan_name='mocktest_1')
-
-    # new step
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":2, "11":1, "12":0}, action_index=1, action_id=1, prev_score=5, topic_name="topic_2", init_score = None, flow_topic= None, plan_name='mocktest_1')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":3, "11":1, "12":0}, action_index=2, action_id=2, prev_score=6, topic_name="topic_2", init_score = None, flow_topic= None, plan_name='mocktest_1')
-
-    # new topic
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":5, "11":1, "12":0}, action_index=3, action_id=3, prev_score=7, topic_name="topic_1", init_score = 6, flow_topic= None, plan_name='mocktest_1')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":10, "11":1, "12":0}, action_index=3, action_id=4, prev_score=9, topic_name="topic_1", init_score = None, flow_topic= None, plan_name='mocktest_1')
-
-
-    # #new plan
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":0, "11":0, "12":0}, action_index=1, action_id=1, prev_score=None, topic_name="topic_1", init_score = 4, flow_topic= ['topic_1', 'topic_2', 'topic_3'], plan_name='mocktest_2')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":1, "11":0, "12":0}, action_index=2, action_id=1, prev_score=5, topic_name="topic_1", init_score = None, flow_topic= None, plan_name='mocktest_2')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=10, topic_masteries={"10":2, "11":0, "12":0}, action_index=3, action_id=3, prev_score=10, topic_name="topic_1", init_score = None, flow_topic= None, plan_name='mocktest_2')
-
-
-    # #new level
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=11, topic_masteries={"10":1, "11":1, "12":0}, action_index=1, action_id=1, prev_score=None, topic_name="topic_2", init_score = 4, flow_topic= ['topic_2', 'topic_1', 'topic_3'], plan_name='mocktest_1')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=11, topic_masteries={"10":0, "11":0, "12":0}, action_index=1, action_id=1, prev_score=None, topic_name="topic_1", init_score = 4, flow_topic= ['topic_1', 'topic_2', 'topic_3'], plan_name='mocktest_2')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="English", level=11, topic_masteries={"10":1, "11":0, "12":0}, action_index=2, action_id=2, prev_score=5, topic_name="topic_1", init_score = 4, flow_topic= ['topic_1', 'topic_2', 'topic_3'], plan_name='mocktest_2')
-    
-    #new subject
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="Math", level=11, topic_masteries={"10":1, "11":1, "12":0}, action_index=1, action_id=1, prev_score=None, topic_name="topic_2", init_score = 4, flow_topic= ['topic_2', 'topic_1', 'topic_3'], plan_name='mocktest_1')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="Math", level=11, topic_masteries={"10":0, "11":0, "12":0}, action_index=1, action_id=1, prev_score=None, topic_name="topic_1", init_score = 4, flow_topic= ['topic_1', 'topic_2', 'topic_3'], plan_name='mocktest_2')
-
-    # database.write_to_DB(user_id="3", user_mail='3@gmail.com', subject="Math", level=11, topic_masteries={"10":1, "11":0, "12":0}, action_index=2, action_id=2, prev_score=5, topic_name="topic_1", init_score = 4, flow_topic= ['topic_1', 'topic_2', 'topic_3'], plan_name='mocktest_2')
+    for user in database.get_all_userInfor():
+        print(user)

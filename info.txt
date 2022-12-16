@@ -1,0 +1,7 @@
+visualize:
+- topic:
+    + số lượng bài fail ( x - lesson_id, y - số lượng) -> những lesson khó
+    + số lượng làm lại ( x - lesson_id, y - số lượng) -> độ khó
+    + với mỗi lesson thì dải điểm số - reward???
+
+    + model???
