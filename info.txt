@@ -3,5 +3,8 @@ visualize:
     + số lượng bài fail ( x - lesson_id, y - số lượng) -> những lesson khó
     + số lượng làm lại ( x - lesson_id, y - số lượng) -> độ khó
     + với mỗi lesson thì dải điểm số - reward???
+    + số lần làm lại trong 1 lesson (phổ) (x - số lần làm lại - y số lượng người ) -> xem độ chênh lệch làm lại 
 
+- cá nhân:
+    + 
     + model???

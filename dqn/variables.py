@@ -43,7 +43,7 @@ CHECKDONE_PATH = 'logs/check_done.log'
 #Config database
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI"
-COLLECTION_USER = "User"
+COLLECTION_USER = "User_test"
 COLLECTION_LESSON = "Content_dev"   # Content_dev, Content
 COLLECTION_LESSON_ID = "Content_dev_ID" # Content_ID, Content_dev_ID
 
@@ -67,7 +67,7 @@ GEOMETRY = ["Geometry", "000"]
 PROBABILITY= ["Probability_statistics", "000"]
 ANALYSIS = ["Analysis", "000"]
 TOTAL_SUBJECT = [MATH, ENGLISH]
-TOTAL_LEVEL = [10, 11,]
+TOTAL_LEVEL = [10, 11,12]
 
 # Name in database
 USER_ID = "user_id"
@@ -93,3 +93,12 @@ GEOMETRY_R_BUFFER = "cache/Geometry_relay_buffer.pickle"
 PROBABILITY_R_BUFFER= "cache/Probability_statistics_relay_buffer.pickle"
 ANALYSIS_R_BUFFER = "cache/Analysis_relay_buffer.pickle"
 
+
+# Visualize
+V_TOPIC = 'topic'
+V_LESSON = 'lesson'
+V_VALUE = 'value'
+V_SCORE = 'score'
+V_REPEAT = 'repeat'
+
+V_GRAPH_TYPE = ['analysis_score_in_lesson', 'initial_masteries_analysis', 'analysis_repeated_in_lesson']

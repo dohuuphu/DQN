@@ -93,4 +93,8 @@ kyon_model*/
 weight/
 logs/
 cache/
+visualize/11
+
+visualize/test.ipynb
+visualize/exp_visualize.ipynb
 test.py
