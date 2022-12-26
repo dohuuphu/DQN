@@ -236,8 +236,10 @@ class Visualize:
                 os.makedirs(path)
             df = pd.DataFrame(columns=['lesson', 'score', 'value'])
             print(ls_unique_lesson[i]['topic'].unique()[0], ls_unique_lesson[i]['lesson'].unique()[0]) 
+            sum_n_repeat = [cnt for val, cnt in ls_unique_lesson[i]['score'].value_counts().items()]
+            sum_n_repeat = sum(sum_n_repeat)
             for val, cnt in ls_unique_lesson[i]['score'].value_counts().items():
-                df = df.append({'lesson':ls_unique_lesson[i]['lesson'].unique()[0], 'score':str(val), 'value':int(cnt)}, ignore_index=True)
+                df = df.append({'lesson':ls_unique_lesson[i]['lesson'].unique()[0], 'score':str(val), 'value':cnt/sum_n_repeat}, ignore_index=True)
             lesson = ls_unique_lesson[i]['lesson'].unique()[0]
             # print(f'{path}/lesson_{lesson}.csv')
             ax = df.plot(x="score", y=['value'], kind="bar")
@@ -284,13 +286,36 @@ class Visualize:
                 os.makedirs(path)
             df = pd.DataFrame(columns=['lesson', 'repeat', 'n_repeat'])
             print(ls_unique_lesson[i]['topic'].unique()[0], ls_unique_lesson[i]['lesson'].unique()[0]) 
+            print(ls_unique_lesson[i]['repeat'].value_counts())
+            sum_n_repeat = [cnt for val, cnt in ls_unique_lesson[i]['repeat'].value_counts().items()]
+            sum_n_repeat = sum(sum_n_repeat)
             for val, cnt in ls_unique_lesson[i]['repeat'].value_counts().items():
-                df = df.append({'lesson':ls_unique_lesson[i]['lesson'].unique()[0], 'repeat':str(int(val)), 'n_repeat':int(cnt)}, ignore_index=True)
+                df = df.append({'lesson':ls_unique_lesson[i]['lesson'].unique()[0], 'repeat':str(int(val)), 'n_repeat':cnt/sum_n_repeat}, ignore_index=True)
             lesson = ls_unique_lesson[i]['lesson'].unique()[0]
             ax = df.plot(x="repeat", y=['n_repeat'], kind="bar")
             ax.figure.savefig(f'{path}/lesson_{lesson}.png')
             df.to_csv(f'{path}/lesson_{lesson}.csv', index=False)
 
+        def analysis_score_step_by_step(self, category, level):
+                '''
+                analysis score step by step
+                '''
+                _, total_step =  self.prepare_data(category, level)
+                score_byTopic = []
+                for step in total_step:
+                    for topic, value in step.items():
+                        for i in range(len(value)):
+                            item = {
+                                V_TOPIC : '',
+                                V_LESSON : '',
+                                V_SCORE : ''
+                                }
+                            if value[i]['score'] is not None:
+                                # print(topic)
+                                item[V_TOPIC] = topic
+                                item[V_LESSON] = value[i]['action_ID']
+                                item[V_SCORE] = value[i]['score']
+                            score_byTopic.append(item)
                 
 
 
@@ -298,7 +323,7 @@ class Visualize:
 
 if __name__ == "__main__":
     test = Visualize()
-    test.analysis_repeated_lesson(category= GRAMMAR[C_REAL_NAME], level= '11')            
+    test.analysis_score_follow_step(category= GRAMMAR[C_REAL_NAME], level= '11')            
 
     
 

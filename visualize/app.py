@@ -1,41 +1,20 @@
-
-import pandas as pd
-import plotly.express as px
 import sys
-import os
 sys.path.append('/home/ubuntu/DQN/')
+
 from dqn.variables import *
+from graph_template import *
 from dqn.database import MongoDb
+
+
 from dash import Dash, dcc, html, Input, Output
 
-import random
 
+#======================== Init-value ========================
 app = Dash(__name__)
 database = MongoDb()
 
-
-TOPIC = []
-
-# df_1 = pd.read_csv('/home/ubuntu/DQN/visualize/11/initial_masteries_analysis/1/topic_1.csv')
-# df_2 = pd.read_csv('/home/ubuntu/DQN/visualize/11/initial_masteries_analysis/1/topic_2.csv')
-
-# df_1.iloc[1]['value']
-# print('aaa', df_1.iloc[1]['value'])
-df_1 = pd.DataFrame({
-    "lesson": [51, 51, 52],
-    "amount": [1, 5, 1],
-    "value": [5,6,10]
-    }
-    )
-df_2 = pd.DataFrame({
-    "lesson": [51, 51, 52],
-    "amount": [11, 5, 1],
-    "value": [10,6,10]
-    }
-    )
-
-
-dict_df = {'1':df_1, '2':df_2}
+list_graphType = [attr for attr in dir(Graph) if not callable(getattr(Graph, attr)) and not attr.startswith("__")]
+#======================== Front-end ========================
 
 app.layout = html.Div([
     html.Div([
@@ -47,11 +26,11 @@ app.layout = html.Div([
         html.Div([
             html.Label(children='Graph_type'),
             dcc.Dropdown(
-                V_GRAPH_TYPE,
-                V_GRAPH_TYPE[0],
+                list_graphType,
+                list_graphType[0],
                 id='graph_type',
             )
-        ], style={'width': '10%', 'display': 'inline-block'}),
+        ], style={'width': '20%', 'display': 'inline-block'}),
         
     
         html.Div([
@@ -92,17 +71,29 @@ app.layout = html.Div([
         ], style={'width': '10%', 'display': 'inline-block'}),
 
 
+        html.Div([
+            html.Label(children='Lesson'),
+            dcc.Dropdown(
+                [], # read from db
+                '1',
+                id='lesson',
+            )
+        ], style={'width': '10%', 'display': 'inline-block'}),
     ]),
 
     dcc.Graph(id='graphic')
 
 ])
 
+#======================== Call-back ========================
 @app.callback(
     Output('level', 'options'),
     Input('subject', 'value')
 )
 def get_level(subject):
+    '''
+        Update list levels when change subject value
+    '''
     return list(database.content_data[subject].keys())
 
 @app.callback(
@@ -111,6 +102,9 @@ def get_level(subject):
     Input('level', 'value'),
 )
 def get_category(subject_name, level):
+    '''
+        Update list category when change subject or level
+    '''
     return list(database.content_data[subject_name][str(level)].keys())
 
 @app.callback(
@@ -121,9 +115,27 @@ def get_category(subject_name, level):
     Input('category', 'value'),
 )
 def get_topic(subject_name, level, category):
-    print(subject_name, level, category)
+    '''
+        Update list category when change subject or level or category
+    '''
     topic_list = list(database.content_data[subject_name][str(level)][str(category)].keys())
     return topic_list, topic_list[0]
+
+
+@app.callback(
+    Output('lesson', 'options'),
+    Output('lesson', 'value'),
+    Input('subject', 'value'),
+    Input('level', 'value'),
+    Input('category', 'value'),
+    Input('topic', 'value'),
+)
+def get_lesson(subject_name, level, category,topic):
+    '''
+        Update list category when change subject or level or category
+    '''
+    lesson_list = list(database.content_data[subject_name][str(level)][str(category)][str(topic)].keys())
+    return lesson_list, lesson_list[0]
 
 
 @app.callback(
@@ -133,24 +145,20 @@ def get_topic(subject_name, level, category):
     Input('category', 'value'),
     Input('level', 'value'),
     Input('topic', 'value'),
-
+    Input('lesson', 'value'),
 )
-def update_graph(graph_type, subject, category, level, topic):
-    if graph_type == V_GRAPH_TYPE[1]:
-        path_plot  = os.path.join('/home/ubuntu/DQN/visualize', str(level), str(graph_type), str(category), f'topic_{topic}.csv')
-        data = pd.read_csv(path_plot, dtype = {'lesson': str, 'amount': str, 'value': str})
-        fig = px.bar(data, x="lesson", y="amount", color="value", barmode="group")
-    elif graph_type == V_GRAPH_TYPE[0]:
-        path_plot  = os.path.join('/home/ubuntu/DQN/visualize', str(level), str(graph_type), str(category), topic,  f'lesson_1.0.csv')
-        data = pd.read_csv(path_plot, dtype = {'lesson': int, 'score': int, 'value': int})
-        fig = px.bar(data, y="value", x="score", barmode="group")
-    # data = dict_df[str(category)]
-    print('path', path_plot)
-    # data = pd.read_csv(path_plot, dtype = {'lesson': str, 'amount': str, 'value': str})
-    # print(data)
-
-    
-
+def update_graph(*args):
+    '''
+        Update graph by collect information from settings and create a path of csv file
+    '''
+    graph_type = args[0]
+    print('graph_type ',  graph_type , Graph.analysis_score_in_lesson)
+    if graph_type == Graph.initial_masteries_analysis:
+        fig = initial_masteries_analysis(*args)
+    elif graph_type == Graph.analysis_score_in_lesson:
+        fig = analysis_score_in_lesson(*args)
+    elif graph_type == Graph.analysis_repeated_in_lesson:
+        fig = analysis_repeated_in_lesson(*args)
 
     return fig
 

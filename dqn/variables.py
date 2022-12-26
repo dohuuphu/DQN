@@ -69,6 +69,8 @@ ANALYSIS = ["Analysis", "000"]
 TOTAL_SUBJECT = [MATH, ENGLISH]
 TOTAL_LEVEL = [10, 11,12]
 
+
+
 # Name in database
 USER_ID = "user_id"
 USER_GMAIL = "user_gmail"
@@ -101,4 +103,29 @@ V_VALUE = 'value'
 V_SCORE = 'score'
 V_REPEAT = 'repeat'
 
-V_GRAPH_TYPE = ['analysis_score_in_lesson', 'initial_masteries_analysis', 'analysis_repeated_in_lesson']
+class English():
+    name = 'English'
+    grammar = 'Grammar'
+    grammar_id = '2'
+
+    vocabulary = 'Vocabulary'
+    vocabulary_id = '1'
+
+class Math():
+    name = 'Math'
+    algebra = 'Algebra'
+    algebra_id = '000'
+
+    geometry = 'Geometry'
+    geometry_id = '000'
+
+    probability_statistics = 'Probability_statistics'
+    probability_statistics_id = '000'
+
+    analysis = 'Analysis'
+    analysis_id = '000'
+
+class Graph():
+    analysis_score_in_lesson = 'analysis_score_in_lesson'
+    initial_masteries_analysis = 'initial_masteries_analysis'
+    analysis_repeated_in_lesson = 'analysis_repeated_in_lesson'
