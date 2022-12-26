@@ -97,6 +97,7 @@ ANALYSIS_R_BUFFER = "cache/Analysis_relay_buffer.pickle"
 
 
 # Visualize
+V_USER_ID = 'user_id'
 V_TOPIC = 'topic'
 V_LESSON = 'lesson'
 V_VALUE = 'value'

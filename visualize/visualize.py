@@ -150,6 +150,7 @@ class Visualize:
         '''
         total_init_masteries = []
         total_step = []
+        total_step_with_user = []
         # Loop all user
         for user_doc in self.database.get_all_userInfor():
             # Init user_manager
@@ -160,9 +161,12 @@ class Visualize:
             # total_init_masteries.append(level_manager.init_masteries_byTopic)
             total_init_masteries += level_manager.init_masteries_byTopic
             total_step.append(level_manager.step)
+            total_step_with_user.append({'user_id':user_manager.id,
+                                        'gmail':user_manager.gmail,
+                                        'step':level_manager.step})
             # print(1)
         # return category_manager, level_manager
-        return total_init_masteries, total_step
+        return total_init_masteries, total_step, total_step_with_user
 
     def analysis_initial_masteries(self, category, level):
         '''
@@ -171,7 +175,7 @@ class Visualize:
         path = f'./{level}/initial_masteries_analysis/{category}'
         if not os.path.exists(path):
             os.makedirs(path)
-        total_init_masteries,_ = self.prepare_data(category, level)
+        total_init_masteries,_,_ = self.prepare_data(category, level)
         df_total_init_masteries = json_normalize(total_init_masteries)
         list_topic = df_total_init_masteries['topic'].unique()
         list_topic = list_topic[(list_topic!='')]
@@ -201,7 +205,7 @@ class Visualize:
         '''
         analysis score 
         '''
-        _, total_step =  self.prepare_data(category, level)
+        _, total_step, _ =  self.prepare_data(category, level)
         score_byTopic = []
         for step in total_step:
             for topic, value in step.items():
@@ -251,7 +255,7 @@ class Visualize:
         '''
         analysis repeated lesson
         '''
-        _, total_step =  self.prepare_data(category, level)
+        _, total_step, _ =  self.prepare_data(category, level)
         total_repeated = []
         for step in total_step:
             for topic, value in step.items():
@@ -296,34 +300,67 @@ class Visualize:
             ax.figure.savefig(f'{path}/lesson_{lesson}.png')
             df.to_csv(f'{path}/lesson_{lesson}.csv', index=False)
 
-        def analysis_score_step_by_step(self, category, level):
-                '''
-                analysis score step by step
-                '''
-                _, total_step =  self.prepare_data(category, level)
-                score_byTopic = []
-                for step in total_step:
-                    for topic, value in step.items():
-                        for i in range(len(value)):
-                            item = {
-                                V_TOPIC : '',
-                                V_LESSON : '',
-                                V_SCORE : ''
-                                }
-                            if value[i]['score'] is not None:
-                                # print(topic)
-                                item[V_TOPIC] = topic
-                                item[V_LESSON] = value[i]['action_ID']
-                                item[V_SCORE] = value[i]['score']
+    def analysis_score_step_by_step(self, category, level):
+            '''
+            analysis score step by step
+            '''
+            _, _, total_step_with_user = self.prepare_data(category, level)
+            score_byTopic = []
+            for step in total_step_with_user:
+                for topic, value in step['step'].items():
+                    for i in range(len(value)):
+                        item = {
+                            V_USER_ID: '',
+                            V_TOPIC : '',
+                            V_LESSON : '',
+                            V_SCORE : ''
+                            }
+                        if value[i]['score'] is not None:
+                            # print(topic)
+                            item[V_USER_ID] = step['user_id']
+                            item[V_TOPIC] = topic
+                            item[V_LESSON] = value[i]['action_ID']
+                            item[V_SCORE] = value[i]['score']
                             score_byTopic.append(item)
-                
+            
+            df_step_user = json_normalize(score_byTopic)
+            df_step_user.replace('', np.nan, inplace=True)
+            df_step_user.dropna()
+
+            unqiue_user = []
+            ls_unique_lesson = []  
+            for user in df_step_user['user'].unique():
+                lesson_by_topic.append(df_step_user[df_step_user['topic']==topic])
+            for unique_topic in lesson_by_topic:
+                for unique_lesson in unique_topic['lesson'].unique():
+                    ls_unique_lesson.append(unique_topic[unique_topic['lesson']==unique_lesson])
+            for i in range(len(ls_unique_lesson)):
+                topic = ls_unique_lesson[i]['topic'].unique()[0]
+                path =  f'./{level}/analysis_repeated_in_lesson/{category}/{topic}/'
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                df = pd.DataFrame(columns=['lesson', 'repeat', 'n_repeat'])
+                print(ls_unique_lesson[i]['topic'].unique()[0], ls_unique_lesson[i]['lesson'].unique()[0]) 
+                print(ls_unique_lesson[i]['repeat'].value_counts())
+                sum_n_repeat = [cnt for val, cnt in ls_unique_lesson[i]['repeat'].value_counts().items()]
+                sum_n_repeat = sum(sum_n_repeat)
+                for val, cnt in ls_unique_lesson[i]['repeat'].value_counts().items():
+                    df = df.append({'lesson':ls_unique_lesson[i]['lesson'].unique()[0], 'repeat':str(int(val)), 'n_repeat':cnt/sum_n_repeat}, ignore_index=True)
+                lesson = ls_unique_lesson[i]['lesson'].unique()[0]
+                ax = df.plot(x="repeat", y=['n_repeat'], kind="bar")
+                ax.figure.savefig(f'{path}/lesson_{lesson}.png')
+                df.to_csv(f'{path}/lesson_{lesson}.csv', index=False)
+
+
+
+            return df_score_by_topic
 
 
 
 
 if __name__ == "__main__":
     test = Visualize()
-    test.analysis_score_follow_step(category= GRAMMAR[C_REAL_NAME], level= '11')            
+    test.analysis_score_step_by_step(category= VOVABULARY[C_REAL_NAME], level= '11')            
 
     
 
