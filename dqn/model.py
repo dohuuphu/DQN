@@ -216,13 +216,13 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
                     temp_episode = episode.value
 
 class Recommend_core():
-    def __init__(self, learning_rate=0.001):
+    def __init__(self, collection_user:str, learning_rate=0.001):
 
         install() # Init exits event
 
         self.lock = Lock()
 
-        self.database = MongoDb()    
+        self.database = MongoDb(collection_user)    
 
         self.embedding = keras.layers.Embedding(NUM_TOPIC, 32, input_length=1, trainable=False) # need define topic_embeddings are separate from  category -> change hash topic_id
 

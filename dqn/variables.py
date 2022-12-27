@@ -43,9 +43,10 @@ CHECKDONE_PATH = 'logs/check_done.log'
 #Config database
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI"
-COLLECTION_USER = "User_test"
+# COLLECTION_USER = "User_test"
 COLLECTION_LESSON = "Content_dev"   # Content_dev, Content
 COLLECTION_LESSON_ID = "Content_dev_ID" # Content_ID, Content_dev_ID
+
 
 
 

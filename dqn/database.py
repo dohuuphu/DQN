@@ -109,10 +109,10 @@ class Data_formater():
 # ============================= DATABASE WORSPACE =========================
 
 class MongoDb:
-    def __init__(self):
+    def __init__(self, collection_user):
         self.client =  pymongo.MongoClient(COLLECTION_PATH)
         self.mydb = self.client[MONGODB_NAME]
-        self.user_db = self.mydb[COLLECTION_USER]
+        self.user_db = self.mydb[collection_user]
         self.content_db = self.mydb[COLLECTION_LESSON]
 
         # Data is readed
