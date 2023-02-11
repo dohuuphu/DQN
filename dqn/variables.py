@@ -43,9 +43,10 @@ CHECKDONE_PATH = 'logs/check_done.log'
 #Config database
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI"
-COLLECTION_USER = "User"
+# COLLECTION_USER = "User_test"
 COLLECTION_LESSON = "Content_dev"   # Content_dev, Content
 COLLECTION_LESSON_ID = "Content_dev_ID" # Content_ID, Content_dev_ID
+
 
 
 
@@ -54,18 +55,38 @@ DONE = 'done'
 INPROCESS = 'inprocess'
 PENDING = 'pending'
 
+# CATEGORY
+C_VISUALE_NAME = 0
+C_REAL_NAME = 1
 ENGLISH = "English"
 GRAMMAR = ["Grammar", "2"]
 VOVABULARY = ["Vocabulary", "1"]
 
 MATH = "Math"
-ALGEBRA = ["Algebra"]
-GEOMETRY = ["Geometry"]
-PROBABILITY= ["Probability_statistics"]
-ANALYSIS = ["Analysis"]
+ALGEBRA = ["Algebra", "000"]
+GEOMETRY = ["Geometry", "000"]
+PROBABILITY= ["Probability_statistics", "000"]
+ANALYSIS = ["Analysis", "000"]
+TOTAL_SUBJECT = [MATH, ENGLISH]
+TOTAL_LEVEL = [10, 11,12]
 
-TOTAL_SUBJECT=[MATH, ENGLISH]
 
+
+# Name in database
+USER_ID = "user_id"
+USER_GMAIL = "user_gmail"
+CATEGORY = "category"
+STATUS = "status"
+POOL = "pool"
+TOTAL_TOPIC = "total_topic"
+TOTAL_MASTERIES = "total_masteries"
+INIT_SCORE = "init_score"
+FLOW = "flow"
+ACTION_RECOMMEND = "action_recommend"
+ACTION_ID = "action_ID"
+SCORE = "score"
+REWARD = "reward"
+MASTERIES = "masteries"
 
 # Cache file
 GRAMMAR_R_BUFFER = "cache/Grammar_relay_buffer.pickle"
@@ -75,3 +96,38 @@ GEOMETRY_R_BUFFER = "cache/Geometry_relay_buffer.pickle"
 PROBABILITY_R_BUFFER= "cache/Probability_statistics_relay_buffer.pickle"
 ANALYSIS_R_BUFFER = "cache/Analysis_relay_buffer.pickle"
 
+
+# Visualize
+V_USER_ID = 'user_id'
+V_TOPIC = 'topic'
+V_LESSON = 'lesson'
+V_VALUE = 'value'
+V_SCORE = 'score'
+V_REPEAT = 'repeat'
+
+class English():
+    name = 'English'
+    grammar = 'Grammar'
+    grammar_id = '2'
+
+    vocabulary = 'Vocabulary'
+    vocabulary_id = '1'
+
+class Math():
+    name = 'Math'
+    algebra = 'Algebra'
+    algebra_id = '000'
+
+    geometry = 'Geometry'
+    geometry_id = '000'
+
+    probability_statistics = 'Probability_statistics'
+    probability_statistics_id = '000'
+
+    analysis = 'Analysis'
+    analysis_id = '000'
+
+class Graph():
+    analysis_score_in_lesson = 'analysis_score_in_lesson'
+    initial_masteries_analysis = 'initial_masteries_analysis'
+    analysis_repeated_in_lesson = 'analysis_repeated_in_lesson'

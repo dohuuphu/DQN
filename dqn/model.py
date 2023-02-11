@@ -216,13 +216,13 @@ def train(name, step_training:Value, episode:Value, observation_Q:Queue, topic_i
                     temp_episode = episode.value
 
 class Recommend_core():
-    def __init__(self, learning_rate=0.001):
+    def __init__(self, collection_user:str, learning_rate=0.001):
 
         install() # Init exits event
 
         self.lock = Lock()
 
-        self.database = MongoDb()    
+        self.database = MongoDb(collection_user)    
 
         self.embedding = keras.layers.Embedding(NUM_TOPIC, 32, input_length=1, trainable=False) # need define topic_embeddings are separate from  category -> change hash topic_id
 
@@ -463,10 +463,19 @@ class Recommend_core():
 
         # New plan
         if data_readed.prev_action is None :  
-            flow_topic = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
+            flow_topic, list_topicDone = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
 
             if not bool(flow_topic):    # don't have flow_topic when inputs is all 1
                 log_mssg += f'Category_{inputs.category} dont have flow_topic when inputs is all 1\n'
+
+                # Update to db
+                for topicName in list_topicDone:
+                    info = User(user_id = inputs.user_id ,user_mail = inputs.user_mail, subject = inputs.subject,           # depend on inputs
+                                category=inputs.category, level = inputs.program_level, plan_name = inputs.plan_name, 
+                                prev_score = inputs.score, reward=reward_per_user, total_masteries=inputs.masteries, topic_masteries = None,     # depend on inputs
+                                action_index = None, action_id = None, topic_name = topicName, init_score = None, 
+                                flow_topic = list_topicDone)
+                    self.database.write_to_DB(info)
                 return {inputs.category:"done"}, log_mssg
 
             curr_topic_name = flow_topic[0]
