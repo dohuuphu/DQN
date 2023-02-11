@@ -217,7 +217,9 @@ class MongoDb:
   
     def prepare_flow_topic(self, subject:str, level:str, total_masteries:dict=None)->list:
         '''
-            Repare topic_flow and return curr_topic value
+            Repare topic_flow if new_flow created
+            list_topicDone is used store user's info if cannot create flow
+
         '''
         dict_exist_topic = {}
         for lesson_id in total_masteries:
@@ -238,11 +240,11 @@ class MongoDb:
                 pass # Log lesson_id not exist in database
 
         # Calulate weight 
-        dict_topic_weight:list = self.calculate_topic_weight(dict_exist_topic)
+        list_topicDone, dict_topic_weight = self.calculate_topic_weight(dict_exist_topic)
 
-        flow_topic = [topic_name for topic_name, _ in dict_topic_weight]
+        flow_topic = [topic_name for topic_name, _ in dict_topic_weight] # Empty if dict_topic_weight is None
 
-        return flow_topic#,  dict_exist_topic[flow_topic[0]]
+        return flow_topic, list_topicDone
     
     def calculate_topic_weight(self,  dict_topic:dict)->list:
 
@@ -254,8 +256,11 @@ class MongoDb:
 
         # Filter topic is done
         filter_topic_weight = {k: v for k, v in dict_topic_weight.items() if v != 1}
+
+        # topic is done
+        topicDone = {k: v for k, v in dict_topic_weight.items() if v == 1}
         
-        return sorted(filter_topic_weight.items(), key=lambda item: item[1], reverse=True) # sort value High -> Low  [(key,val), (key,val),...]
+        return topicDone, sorted(filter_topic_weight.items(), key=lambda item: item[1], reverse=True) # sort value High -> Low  [(key,val), (key,val),...]
 
     def read_from_DB(self, user_id:str, category:str, level:str, plan_name:str):      
         try:
