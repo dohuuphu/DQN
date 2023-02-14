@@ -449,8 +449,8 @@ class Recommend_core():
     def process_learningPath(self, inputs:Item): 
         start = time.time()
         log_mssg = ''
-        if len(inputs.masteries)>1 and 0 not in list(inputs.masteries.values()):
-            return {inputs.category:"Done"}, f'Category {inputs.category} is Done'
+        # if len(inputs.masteries)>1 and 0 not in list(inputs.masteries.values()):
+        #     return {inputs.category:"Done"}, f'Category {inputs.category} is Done'
         # Processing input and store database
         data_readed:Format_reader = self.database.read_from_DB(inputs.user_id, inputs.category, str(inputs.program_level), inputs.plan_name)
 
