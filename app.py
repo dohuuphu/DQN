@@ -38,7 +38,7 @@ def set_mode(mode:str)->int:
         port = 30616
     elif mode == "uat":
         collection_user = "User_uat"
-        port = 30618
+        port = 30619
         
     return collection_user, port
 
