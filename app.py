@@ -31,11 +31,14 @@ def set_mode(mode:str)->int:
         collection_user =  "User_dev"
         port = 30615
     elif mode == "staging":
-        collection_user = "User"    
+        collection_user = "User_staging"    
         port = 30617
     elif mode == "deploy":
         collection_user = "User"
         port = 30616
+    elif mode == "uat":
+        collection_user = "User_uat"
+        port = 30618
         
     return collection_user, port
 
