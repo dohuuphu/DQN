@@ -48,7 +48,7 @@ def set_mode(mode:str)->int:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--mode", type=str, choices=["dev", "staging", "deploy"], required=True, help="dev/staging/deploy")
+    parser.add_argument("-m", "--mode", type=str, choices=["dev", "staging", "deploy", "uat"], required=True, help="dev/staging/deploy/uat")
     args = parser.parse_args()
 
     collection_user, port_number = set_mode(args.mode)
