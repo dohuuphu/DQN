@@ -29,41 +29,41 @@ class SimStudent():
     self.percent_done_topic = 0
 
 
-  def step_api(self, total_step:int, action:int, observation_:list, num_items_inPool:int, score:int=None): 
-    '''
-      action was recommended by pass observation to model
-      total_step was read from database
-    '''
-    reward = 0
-    done = False
-    observation = observation_.copy()
-    # self.history.update({action:observation[action]})
+  # def step_api(self, total_step:int, action:int, observation_:list, num_items_inPool:int, score:int=None): 
+  #   '''
+  #     action was recommended by pass observation to model
+  #     total_step was read from database
+  #   '''
+  #   reward = 0
+  #   done = False
+  #   observation = observation_.copy()
+  #   # self.history.update({action:observation[action]})
 
-    if observation[action] == 1.0: # Negative sample
-      reward-=1
-    else:
-      reward +=1
+  #   if observation[action] == 1.0: # Negative sample
+  #     reward-=1
+  #   else:
+  #     reward +=1
     
-    #  Calcualate with score
-    if score is not None and observation[action] == 0 and score >= 5:  
-      reward += score-4 
+  #   #  Calcualate with score
+  #   if score is not None and observation[action] == 0 and score >= 5:  
+  #     reward += score-4 
 
-      # Update observation
-      observation[action] = 1
+  #     # Update observation
+  #     observation[action] = 1
 
-    # Check done observation (a topic)
-    if not 0.0 in observation:
-      done = True
+  #   # Check done observation (a topic)
+  #   if not 0.0 in observation:
+  #     done = True
 
-      # All recommened action is correct
-      if total_step <= num_items_inPool:
-        reward += 10
+  #     # All recommened action is correct
+  #     if total_step <= num_items_inPool:
+  #       reward += 10
       
-      # Exist wrong recommended action (select 1)
-      if total_step > num_items_inPool:
-        reward -= total_step - num_items_inPool
+  #     # Exist wrong recommended action (select 1)
+  #     if total_step > num_items_inPool:
+  #       reward -= total_step - num_items_inPool
     
-    return reward, done
+  #   return reward, done
   
   def step_api(self, total_step:int, action:int, observation_:list, num_items_inPool:int, score:dict=None): 
     '''
@@ -73,24 +73,20 @@ class SimStudent():
     reward = 0
     done = False
     observation = observation_.copy()
+    if observation[action] == 1.0: # Negative sample
+      reward-=1
+    else:
+      reward +=1
     if score is not None:
       for i in score:
         for level in score[i]:
-          reward += score[i][level]["percent"]*10 - score[i][level]["times"]
+          reward += score[i][level]["percent"]/100*10 - score[i][level]["times"]
       observation[action] = 1
     
     # Check done observation (a topic)
     if not 0.0 in observation:
       done = True
-
-      # All recommened action is correct
-      if total_step <= num_items_inPool:
-        reward += 10
-      
-      # Exist wrong recommended action (select 1)
-      if total_step > num_items_inPool:
-        reward -= total_step - num_items_inPool
-    
+   
     return reward, done
   
   def reset(self, observation=None):
