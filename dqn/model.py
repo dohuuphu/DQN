@@ -85,6 +85,10 @@ def get_cachePath(name):
             cache_path = GRAMMAR_R_BUFFER
         elif name in VOVABULARY:
             cache_path = VOCABULARY_R_BUFFER
+
+        # MATHTEST categories
+        elif name in TOTAL:
+            cache_path = TOTAL_R_BUFFER
         
         return cache_path 
 
@@ -232,7 +236,8 @@ class Recommend_core():
         self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, embedding=self.embedding)
         self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, embedding=self.embedding)
         self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, embedding=self.embedding)
-
+        self.mathtest_Total = Subject_core(name=TOTAL, learning_rate=learning_rate, embedding=self.embedding)
+        
         procs = [] 
         procs.append(Process(target=train, args=(GRAMMAR[0], self.english_Grammar.items_shared.step,
                                                                                 self.english_Grammar.items_shared.episode,
@@ -294,7 +299,16 @@ class Recommend_core():
                                                                                 self.math_Analysis.items_shared.done,
                                                                                 self.math_Analysis.items_shared.weight,
                                                                                 self.math_Analysis.embedding), daemon=True))
-        
+        procs.append(Process(target=train, args=(TOTAL[0], self.mathtest_Total.items_shared.step,
+                                                                                self.mathtest_Total.items_shared.episode,
+                                                                                self.mathtest_Total.items_shared.observation,
+                                                                                self.mathtest_Total.items_shared.topic_id,
+                                                                                self.mathtest_Total.items_shared.action_index,
+                                                                                self.mathtest_Total.items_shared.reward,
+                                                                                self.mathtest_Total.items_shared.next_observation,
+                                                                                self.mathtest_Total.items_shared.done,
+                                                                                self.mathtest_Total.items_shared.weight,
+                                                                                self.mathtest_Total.embedding), daemon=True))
         for proc in procs:
             proc.start()
 
@@ -343,6 +357,11 @@ class Recommend_core():
         except:
             self.math_Analysis.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
         self.math_Analysis.train_summary_writer = tf.summary.create_file_writer(join("logs", self.math_Analysis.name, MODEL_SAVE)) 
+        try:
+            self.mathtest_Total.agent = keras.models.load_model(join("weight", self.mathtest_Total.name, MODEL_SAVE))
+        except:
+            self.mathtest_Total.agent = Agent(STATE_ACTION_SPACE, self.embedding) 
+        self.mathtest_Total.train_summary_writer = tf.summary.create_file_writer(join("logs", self.mathtest_Total.name, MODEL_SAVE)) 
     
         # Register a cleaner using a decorator
         @register
@@ -463,6 +482,7 @@ class Recommend_core():
 
         # New plan
         if data_readed.prev_action is None :  
+            #sort LPDs
             flow_topic, list_topicDone = self.database.prepare_flow_topic(subject=inputs.subject, level=inputs.program_level, total_masteries=inputs.masteries)
 
             if not bool(flow_topic):    # don't have flow_topic when inputs is all 1
@@ -683,6 +703,10 @@ class Recommend_core():
             category_model = self.english_Grammar   
         elif category in VOVABULARY:
             category_model = self.english_Vocabulary
+
+        # MATHTEST categories
+        elif category in TOTAL:
+            category_model = self.mathtest_Total
         
         return category_model
 

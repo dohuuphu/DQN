@@ -44,8 +44,8 @@ CHECKDONE_PATH = 'logs/check_done.log'
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI"
 # COLLECTION_USER = "User_test"
-COLLECTION_LESSON = "Content_dev"   # Content_dev, Content
-COLLECTION_LESSON_ID = "Content_dev_ID" # Content_ID, Content_dev_ID
+COLLECTION_LESSON = "Content_dev_test"   # Content_dev, Content
+COLLECTION_LESSON_ID = "Content_dev_ID_test" # Content_ID, Content_dev_ID
 
 
 
@@ -62,12 +62,15 @@ ENGLISH = "English"
 GRAMMAR = ["Grammar", "2"]
 VOVABULARY = ["Vocabulary", "1"]
 
+MATHTEST = "MathTest"
+TOTAL = ["Total", "3"]
+
 MATH = "Math"
 ALGEBRA = ["Algebra", "000"]
 GEOMETRY = ["Geometry", "000"]
 PROBABILITY= ["Probability_statistics", "000"]
 ANALYSIS = ["Analysis", "000"]
-TOTAL_SUBJECT = [MATH, ENGLISH]
+TOTAL_SUBJECT = [MATH, ENGLISH, MATHTEST]
 TOTAL_LEVEL = [10, 11,12]
 
 
@@ -95,7 +98,7 @@ ALGEBRA_R_BUFFER = "cache/Algebra_relay_buffer.pickle"
 GEOMETRY_R_BUFFER = "cache/Geometry_relay_buffer.pickle"
 PROBABILITY_R_BUFFER= "cache/Probability_statistics_relay_buffer.pickle"
 ANALYSIS_R_BUFFER = "cache/Analysis_relay_buffer.pickle"
-
+TOTAL_R_BUFFER = "cache/Total_relay_buffer.pickle"
 
 # Visualize
 V_USER_ID = 'user_id'
@@ -104,6 +107,11 @@ V_LESSON = 'lesson'
 V_VALUE = 'value'
 V_SCORE = 'score'
 V_REPEAT = 'repeat'
+
+class MathTest():
+    name = 'MathTest'
+    total = 'Total'
+    total_id = '1'
 
 class English():
     name = 'English'

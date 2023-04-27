@@ -36,7 +36,8 @@ class Item(BaseModel):
     program_level:str
     plan_name:str
     masteries:dict = {}
-    score:int = None
+    # score:int = None
+    score:Optional[dict] = None 
     category:str = None
 
 def route_setup(app, RL_model):

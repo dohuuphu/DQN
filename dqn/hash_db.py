@@ -75,3 +75,6 @@ class HashDB:
         #insert new hash DB
         self.colhash.insert_one(hash_dict)
 
+if __name__ == "__main__":
+    hash_DB = HashDB()
+    hash_DB.add_hash_db()

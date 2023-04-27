@@ -16,7 +16,7 @@ class Item_relayBuffer:
         self.reward:float = reward      #reward for choice action_index
         self.next_observation:np.ndarray = np.array(next_observation)   # run action_index => next_observation
         self.done:bool = done
-        self.score:float = score       # Score of action_index
+        self.score:dict = score       # Score of action_index
         self.num_items_inPool:int = num_items_inPool
 
 class RelayBuffer_cache():

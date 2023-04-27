@@ -39,6 +39,9 @@ def set_mode(mode:str)->int:
     elif mode == "uat":
         collection_user = "User_uat"
         port = 30619
+    elif mode == "test":
+        collection_user = "test"
+        port = 30614
         
     return collection_user, port
 
@@ -48,7 +51,7 @@ def set_mode(mode:str)->int:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--mode", type=str, choices=["dev", "staging", "deploy", "uat"], required=True, help="dev/staging/deploy/uat")
+    parser.add_argument("-m", "--mode", type=str, choices=["dev", "staging", "deploy", "uat", "test"], required=True, help="dev/staging/deploy/uat")
     args = parser.parse_args()
 
     collection_user, port_number = set_mode(args.mode)
