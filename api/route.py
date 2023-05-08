@@ -1,6 +1,7 @@
 
 
 import asyncio
+import aiohttp
 import logging
 
 from starlette.routing import Match
@@ -61,12 +62,37 @@ def route_setup(app, RL_model):
 
         return APIResponse.json_format(result)
 
+    async def call_another_api(item):
+        info = f'IN_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}_{item.plan_name}|prev_score: {item.score}| masteries: {item.masteries}'
+        logging.getLogger(RECOMMEND_LOG).info(info)
+        try:
+            (result, mssg), infer_time = RL_model.get_learning_point(item)
+        except OSError as e:
+            result = 'error'
+        
+        # Logging
+        endline = f'='*80
+        tab = f'\t'*8
+        info = f"OUT_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}_{item.plan_name}|prev_score: {item.score}| masteries: {item.masteries}\n{mssg}{tab}result {result}\n{tab}process_time: {infer_time:.3f}s\n{endline}\n"
+        logging.getLogger(RECOMMEND_LOG).info(info)
+        url = 'http://18.143.44.85:30614/fake_api'
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=result) as response:
+                result = await response.json()
+                print(result)
+                return result
 
     @app.post('/recommender')
     async def get_learningPoint(item: Item):
 
-        return await asyncio.get_event_loop().run_in_executor(executor, execute_api, item)
+        # return await asyncio.get_event_loop().run_in_executor(executor, execute_api, item)
+        response = {'message': 'Received the data'}
+        asyncio.create_task(call_another_api(item)) # call another API asynchronously
+        return response
 
+    @app.post('/fake_api')
+    async def call_back():
+        return {'message': 'Done'}
     @app.get('/check_done_program')
     def check_done_program(item: Item):
         message, infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level, item.plan_name)

@@ -63,7 +63,7 @@ GRAMMAR = ["Grammar", "2"]
 VOVABULARY = ["Vocabulary", "1"]
 
 MATHTEST = "MathTest"
-TOTAL = ["Total", "3"]
+MATHCEREBRY = ["Math_Cerebry", "3"]
 
 MATH = "Math"
 ALGEBRA = ["Algebra", "000"]
