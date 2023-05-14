@@ -30,13 +30,13 @@ def set_mode(mode:str)->int:
     if mode == 'dev':
         collection_user =  "User_dev"
         port = 30615
-        url_callback = " https://student-api-dev.kyons.vn/ai/update_learning_path_async"
+        url_callback = "https://student-api-dev.kyons.vn/ai/update_learning_path_async"
     elif mode == "staging":
         collection_user = "User_staging"    
         port = 30617
         url_callback = "https://student-api-stg.kyons.vn/ai/update_learning_path_async"
     elif mode == "deploy":
-        collection_user = "User"
+        collection_user = "User_Math"
         port = 30616
         url_callback = "https://student-api.kyons.vn/ai/update_learning_path_async"
     elif mode == "uat":
@@ -45,7 +45,7 @@ def set_mode(mode:str)->int:
     elif mode == "test":
         collection_user = "test"
         port = 30614
-        url_callback = "http://18.143.44.85:30614/fake_api"
+        url_callback = "http://13.215.52.218:30614/fake_api"
         
     return collection_user, port, url_callback
 

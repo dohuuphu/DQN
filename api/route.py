@@ -91,9 +91,10 @@ def route_setup(app, RL_model, url_callback):
         info = f"OUT_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}_{item.plan_name}|prev_score: {item.score}| masteries: {item.masteries}\n{mssg}{tab}result {result}\n{tab}process_time: {infer_time:.3f}s\n{endline}\n"
         logging.getLogger(RECOMMEND_LOG).info(info)
         url = url_callback
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(headers={"X-Authenticated-User":"kyons-ai-api-key"}) as session:
             async with session.post(url, json=input_json) as response:
-                result = await response.json()
+                result = await response.text()
+                print(result)
                 return result
 
     @app.post('/recommender')
@@ -109,11 +110,11 @@ def route_setup(app, RL_model, url_callback):
     async def call_back():
         try:
             print("Success")
-            return {'status': 200}
+            return 200
         except Exception as e:
             print("Failed")
             logging.getLogger(ERROR_LOG).exception(e)
-            return  {'status': 403}            
+            return  403          
     @app.get('/check_done_program')
     def check_done_program(item: Item):
         message, infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level, item.plan_name)

@@ -92,6 +92,8 @@ Session.vim
 kyon_model*/
 weight/
 logs/
+logs_copy0/
+logs_old/
 cache/
 visualize/11
 

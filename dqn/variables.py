@@ -46,8 +46,8 @@ ERROR_PATH = 'logs/error.log'
 COLLECTION_PATH = "mongodb://localhost:27017"
 MONGODB_NAME = "AI"
 # COLLECTION_USER = "User_test"
-COLLECTION_LESSON = "Content_dev_test"   # Content_dev, Content
-COLLECTION_LESSON_ID = "Content_dev_ID_test" # Content_ID, Content_dev_ID
+COLLECTION_LESSON = "Math_Content"   # Content_dev, Content
+COLLECTION_LESSON_ID = "Math_Content_ID" # Content_ID, Content_dev_ID
 
 
 
