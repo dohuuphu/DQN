@@ -15,6 +15,7 @@ from dqn.database import MongoDb
 from dqn.insert_data_to_db import DB_Backend
 from dqn.hash_db import HashDB
 from typing import Optional
+from time import perf_counter
 
 from dqn.variables import CHECKDONE_LOG, RECOMMEND_LOG, SYSTEM_LOG, DONE, INPROCESS
 
@@ -22,6 +23,9 @@ from dqn.variables import CHECKDONE_LOG, RECOMMEND_LOG, SYSTEM_LOG, DONE, INPROC
 class BodyLesson(BaseModel):
     program: str
     level: str
+
+class SandBox(BaseModel):
+    callback_error: bool
 
 class Database_info(BaseModel):
     method:str
@@ -40,8 +44,10 @@ class Item(BaseModel):
     # score:int = None
     score:Optional[dict] = None 
     category:str = None
+    sandbox: SandBox
 
-def route_setup(app, RL_model):
+
+def route_setup(app, RL_model, url_callback):
     executor = ThreadPoolExecutor()
 
     def execute_api(item: Item):
@@ -69,30 +75,45 @@ def route_setup(app, RL_model):
             (result, mssg), infer_time = RL_model.get_learning_point(item)
         except OSError as e:
             result = 'error'
-        
+        print(result['1'])
+        input_json = {
+            "user_id": item.user_id,
+            "user_mail": item.user_mail,
+            "subject": item.subject,
+            "program_level": item.program_level,
+            "plan_name": item.plan_name,
+            "lesson_id": None if result['1'] == "error" else result['1']
+        }
+        print(input_json)
         # Logging
         endline = f'='*80
         tab = f'\t'*8
         info = f"OUT_request_INFO: {item.user_mail}_{item.subject}_{item.program_level}_{item.plan_name}|prev_score: {item.score}| masteries: {item.masteries}\n{mssg}{tab}result {result}\n{tab}process_time: {infer_time:.3f}s\n{endline}\n"
         logging.getLogger(RECOMMEND_LOG).info(info)
-        url = 'http://18.143.44.85:30614/fake_api'
+        url = url_callback
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=result) as response:
+            async with session.post(url, json=input_json) as response:
                 result = await response.json()
-                print(result)
                 return result
 
     @app.post('/recommender')
     async def get_learningPoint(item: Item):
-
-        # return await asyncio.get_event_loop().run_in_executor(executor, execute_api, item)
-        response = {'message': 'Received the data'}
-        asyncio.create_task(call_another_api(item)) # call another API asynchronously
-        return response
-
+        try:
+            asyncio.create_task(call_another_api(item)) # call another API asynchronously
+            return {'status': 200}
+        except Exception as e:
+            logging.getLogger(ERROR_LOG).exception(e)
+            return {'status': 403}            
+        
     @app.post('/fake_api')
     async def call_back():
-        return {'message': 'Done'}
+        try:
+            print("Success")
+            return {'status': 200}
+        except Exception as e:
+            print("Failed")
+            logging.getLogger(ERROR_LOG).exception(e)
+            return  {'status': 403}            
     @app.get('/check_done_program')
     def check_done_program(item: Item):
         message, infer_time = RL_model.is_done_program(item.user_id, item.subject, item.program_level, item.plan_name)
@@ -103,7 +124,7 @@ def route_setup(app, RL_model):
         return APIResponse.json_format(message)
 
 
-def route_setup_database(app, database:MongoDb): 
+def route_setup_database(app): 
 
     @app.post('/update_database')
     async def udpate_database(db_info:Database_info):

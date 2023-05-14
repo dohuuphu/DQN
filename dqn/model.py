@@ -87,7 +87,7 @@ def get_cachePath(name):
             cache_path = VOCABULARY_R_BUFFER
 
         # MATHTEST categories
-        elif name in MATHCEREBRY:
+        elif name in TOAN_THPT:
             cache_path = TOTAL_R_BUFFER
         
         return cache_path 
@@ -236,7 +236,7 @@ class Recommend_core():
         self.math_Geometry = Subject_core(name=GEOMETRY, learning_rate=learning_rate, embedding=self.embedding)
         self.math_Probability = Subject_core(name=PROBABILITY, learning_rate=learning_rate, embedding=self.embedding)
         self.math_Analysis = Subject_core(name=ANALYSIS, learning_rate=learning_rate, embedding=self.embedding)
-        self.math_cerebry = Subject_core(name=MATHCEREBRY, learning_rate=learning_rate, embedding=self.embedding)
+        self.math_cerebry = Subject_core(name=TOAN_THPT, learning_rate=learning_rate, embedding=self.embedding)
         
         procs = [] 
         procs.append(Process(target=train, args=(GRAMMAR[0], self.english_Grammar.items_shared.step,
@@ -299,7 +299,7 @@ class Recommend_core():
                                                                                 self.math_Analysis.items_shared.done,
                                                                                 self.math_Analysis.items_shared.weight,
                                                                                 self.math_Analysis.embedding), daemon=True))
-        procs.append(Process(target=train, args=(MATHCEREBRY[0], self.math_cerebry.items_shared.step,
+        procs.append(Process(target=train, args=(TOAN_THPT[0], self.math_cerebry.items_shared.step,
                                                                                 self.math_cerebry.items_shared.episode,
                                                                                 self.math_cerebry.items_shared.observation,
                                                                                 self.math_cerebry.items_shared.topic_id,
@@ -705,7 +705,7 @@ class Recommend_core():
             category_model = self.english_Vocabulary
 
         # MATHTEST categories
-        elif category in MATHCEREBRY:
+        elif category in TOAN_THPT:
             category_model = self.math_cerebry
         
         return category_model

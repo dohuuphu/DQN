@@ -33,10 +33,12 @@ MODEL_INFERENCE = '/home/ubuntu/DQN/weight/action_30_relation_length_2feature'
 SYSTEM_LOG = 'system_logger'
 RECOMMEND_LOG = 'recommender_logger'
 CHECKDONE_LOG = 'checkdone_logger'
+ERROR_LOG = 'error_logger'
 
 SYSTEM_PATH = 'logs/system.log'
 RECOMMEND_PATH = 'logs/recommender.log'
 CHECKDONE_PATH = 'logs/check_done.log'
+ERROR_PATH = 'logs/error.log'
 
 
 
@@ -62,15 +64,15 @@ ENGLISH = "English"
 GRAMMAR = ["Grammar", "2"]
 VOVABULARY = ["Vocabulary", "1"]
 
-MATHTEST = "MathTest"
-MATHCEREBRY = ["Math_Cerebry", "3"]
+THPT_QUOC_GIA = "THPT Quốc Gia"
+TOAN_THPT = ["TOAN_THPT", "3"]
 
 MATH = "Math"
 ALGEBRA = ["Algebra", "000"]
 GEOMETRY = ["Geometry", "000"]
 PROBABILITY= ["Probability_statistics", "000"]
 ANALYSIS = ["Analysis", "000"]
-TOTAL_SUBJECT = [MATH, ENGLISH, MATHTEST]
+TOTAL_SUBJECT = [MATH, ENGLISH, THPT_QUOC_GIA]
 TOTAL_LEVEL = [10, 11,12]
 
 
@@ -108,8 +110,8 @@ V_VALUE = 'value'
 V_SCORE = 'score'
 V_REPEAT = 'repeat'
 
-class MathTest():
-    name = 'MathTest'
+class THPT_QUOC_GIA():
+    name = 'THPT Quốc Gia'
     total = 'Total'
     total_id = '1'
 

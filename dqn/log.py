@@ -10,6 +10,7 @@ class Logger():
         self.setup_logger(SYSTEM_LOG, SYSTEM_PATH)
         self.setup_logger(RECOMMEND_LOG, RECOMMEND_PATH)
         self.setup_logger(CHECKDONE_LOG, CHECKDONE_PATH)
+        self.setup_logger(ERROR_LOG, ERROR_PATH)
 
     def setup_logger(self, name, log_file, level=logging.DEBUG):
         """To setup as many loggers as you want"""

@@ -19,9 +19,10 @@ class DB_Backend():
         # self.url = url  #"https://api.tuhoconline.org/ai/lessons"
         # self.headers = {key:val} #{"X-Authenticated-User":"kyons-ai-api-key"}
         self.current_DB = DBLesson()
-        self.subject_level = json.program.split(" ")
-        self.subject = self.subject_level[0]
-        self.level = self.subject_level[1]
+        # self.subject_level = json.program.split(" ")
+        # print(self.subject_level)
+        self.subject = json.program
+        self.level = json.level
         self.respone = requests.request(method, url, headers=header, json={"program":json.program, "level": json.level})
     #get category, topic and lesson from DB backend
     # return category_1:{topic_1:{lesson_1:1,... lesson_n:1},
@@ -29,8 +30,8 @@ class DB_Backend():
     def normalize_input(self):
         response_json = json.loads(self.respone.text)
         df = pd.DataFrame(response_json)
-        df = df[df['content'].notnull()]
-        df = df[df['content']!=''] 
+        # df = df[df['content'].notnull()]
+        # df = df[df['content']!=''] 
         topics = list(df['topic_id'].unique())
         topics = sorted(topics)
         category_id = list(df['category_id'].unique())
@@ -49,10 +50,11 @@ class DB_Backend():
         return lesson
     #Re-update current_db with new data
     def modify_current_db(self):
+        print(self.subject)
         try:
             modify_db = self.normalize_input()
             self.current_DB.mycol.update_many({
-            f"{str(self.subject)}": {"$exists": True}
+            f"{str(self.subject)}": {"$exists": False}
             },
             {
             "$set": {
@@ -65,7 +67,10 @@ class DB_Backend():
 
 
 if __name__ == "__main__":
+    from collections import namedtuple
     database = DBLesson()
-    lesson_from_api = DB_Backend()
+    MyStruct = namedtuple('MyStruct', 'program level')
+    body = MyStruct(program="THPT Quốc Gia", level="13")
+    lesson_from_api = DB_Backend(method="GET", url="https://student-api-dev.kyons.vn/ai/lessons", header={"X-Authenticated-User":"kyons-ai-api-key"}, json=body)
     data = lesson_from_api.normalize_input()
     database.insert_lesson_to_mongo(data)
