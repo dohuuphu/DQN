@@ -54,7 +54,7 @@ class DB_Backend():
         try:
             modify_db = self.normalize_input()
             self.current_DB.mycol.update_many({
-            f"{str(self.subject)}": {"$exists": False}
+            f"{str(self.subject)}": {"$exists": True}
             },
             {
             "$set": {
@@ -71,6 +71,6 @@ if __name__ == "__main__":
     database = DBLesson()
     MyStruct = namedtuple('MyStruct', 'program level')
     body = MyStruct(program="THPT Quốc Gia", level="13")
-    lesson_from_api = DB_Backend(method="GET", url="https://student-api-dev.kyons.vn/ai/lessons", header={"X-Authenticated-User":"kyons-ai-api-key"}, json=body)
+    lesson_from_api = DB_Backend(method="GET", url="https://student-api.kyons.vn/ai/lessons", header={"X-Authenticated-User":"kyons-ai-api-key"}, json=body)
     data = lesson_from_api.normalize_input()
     database.insert_lesson_to_mongo(data)

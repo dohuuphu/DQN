@@ -44,7 +44,7 @@ class Item(BaseModel):
     # score:int = None
     score:Optional[dict] = None 
     category:str = None
-    sandbox: SandBox
+    sandbox: Optional[SandBox]
 
 
 def route_setup(app, RL_model, url_callback):
@@ -75,7 +75,7 @@ def route_setup(app, RL_model, url_callback):
             (result, mssg), infer_time = RL_model.get_learning_point(item)
         except OSError as e:
             result = 'error'
-        print(result['1'])
+        print(result)
         input_json = {
             "user_id": item.user_id,
             "user_mail": item.user_mail,
